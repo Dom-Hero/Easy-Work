@@ -146,7 +146,7 @@
         <BackBtn />
       </a-layout-header>
       <a-layout-content style="margin: 0 16px">
-        <div :style="{ padding: '24px', background: '#fff', minHeight: '360px' }">
+        <div class="editor-panel">
           <template v-if="selectedFileId">
             <div class="editor-header">
               <span class="editor-title">{{ currentFile?.name }}</span>
@@ -160,7 +160,7 @@
           <a-empty v-else description="请选择或创建一个 Markdown 文件" />
         </div>
       </a-layout-content>
-      <a-layout-footer style="text-align: center">
+      <a-layout-footer class="page-footer">
         记录每一天，记录每一点，记录每一刻
       </a-layout-footer>
     </a-layout>
@@ -419,16 +419,32 @@ function onSave(v: string) {
   height: 64px;
   padding: 0 24px;
   line-height: normal;
-  background: #fff;
+  background: var(--clay-canvas, #fffaf0);
+  border-bottom: 1px solid var(--clay-hairline, #e5e5e5);
+}
+
+.page-footer {
+  text-align: center;
+  background: var(--clay-surface-soft, #faf5e8);
+  color: var(--clay-body, #3a3a3a);
+  font-size: 14px;
+}
+
+.editor-panel {
+  padding: 24px;
+  min-height: 360px;
+  background: var(--clay-canvas, #fffaf0);
+  border: 1px solid var(--clay-hairline, #e5e5e5);
+  border-radius: var(--clay-rounded-lg, 16px);
 }
 
 .note-sider {
-  background: linear-gradient(-45deg, #e81cff 0%, #40c9ff 100%) !important;
+  background: var(--clay-brand-teal, #1a3a3a) !important;
 }
 
 .note-sider :deep(.ant-layout-sider-trigger) {
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
+  background: color-mix(in srgb, var(--clay-on-dark, #fff) 12%, transparent);
+  color: var(--clay-on-dark, #fff);
 }
 
 .sider-header {
@@ -437,27 +453,30 @@ function onSave(v: string) {
   justify-content: center;
   gap: 8px;
   padding: 16px 8px 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid color-mix(in srgb, var(--clay-on-dark, #fff) 12%, transparent);
 }
 
 .sider-action-btn {
-  color: rgba(255, 255, 255, 0.85);
+  color: color-mix(in srgb, var(--clay-on-dark, #fff) 85%, transparent);
   font-size: 18px;
   width: 36px;
   height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: var(--clay-rounded-md, 12px);
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
 
 .sider-action-btn:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.1);
+  color: var(--clay-on-dark, #fff);
+  background: color-mix(in srgb, var(--clay-on-dark, #fff) 12%, transparent);
+  transform: translateY(-1px);
 }
 
 .sider-action-btn-active {
-  color: #ff7875 !important;
-  background: rgba(255, 77, 79, 0.15) !important;
+  color: var(--clay-brand-coral, #ff6b5a) !important;
+  background: color-mix(in srgb, var(--clay-brand-coral, #ff6b5a) 18%, transparent) !important;
 }
 
 .sider-action-btn:disabled {
@@ -481,23 +500,24 @@ function onSave(v: string) {
   gap: 8px;
   padding: 8px 16px;
   cursor: pointer;
-  color: rgba(255, 255, 255, 0.65);
-  transition: all 0.2s;
+  color: color-mix(in srgb, var(--clay-on-dark, #fff) 65%, transparent);
+  border-radius: 0;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
 
 .note-item:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.08);
+  color: var(--clay-on-dark, #fff);
+  background: color-mix(in srgb, var(--clay-on-dark, #fff) 8%, transparent);
 }
 
 .note-item.active {
-  color: #fff;
-  background: #1677ff;
+  color: var(--clay-ink, #0a0a0a);
+  background: var(--clay-brand-peach, #ffb084);
 }
 
 .note-item.is-checked,
 .folder-header.is-checked {
-  background: rgba(255, 77, 79, 0.12);
+  background: color-mix(in srgb, var(--clay-brand-coral, #ff6b5a) 16%, transparent);
 }
 
 .note-check {
@@ -506,7 +526,7 @@ function onSave(v: string) {
 
 .note-check :deep(.ant-checkbox-inner) {
   background: transparent;
-  border-color: rgba(255, 255, 255, 0.45);
+  border-color: color-mix(in srgb, var(--clay-on-dark, #fff) 45%, transparent);
 }
 
 .note-item-nested {
@@ -536,22 +556,22 @@ function onSave(v: string) {
   gap: 8px;
   padding: 8px 8px 8px 16px;
   cursor: pointer;
-  color: rgba(255, 255, 255, 0.85);
-  transition: all 0.2s;
+  color: color-mix(in srgb, var(--clay-on-dark, #fff) 85%, transparent);
+  transition: background-color 0.2s ease;
 }
 
 .folder-header:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--clay-on-dark, #fff) 8%, transparent);
 }
 
 .folder-add-btn {
   margin-left: auto;
-  color: rgba(255, 255, 255, 0.45);
+  color: color-mix(in srgb, var(--clay-on-dark, #fff) 45%, transparent);
   flex-shrink: 0;
 }
 
 .folder-add-btn:hover {
-  color: #fff;
+  color: var(--clay-on-dark, #fff);
 }
 
 .folder-children {
@@ -559,9 +579,9 @@ function onSave(v: string) {
 }
 
 .drop-target-active {
-  outline: 1px dashed rgba(255, 255, 255, 0.45);
+  outline: 1px dashed color-mix(in srgb, var(--clay-brand-ochre, #e8b94a) 70%, transparent);
   outline-offset: -1px;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--clay-brand-ochre, #e8b94a) 12%, transparent);
 }
 
 .delete-bar {
@@ -570,15 +590,15 @@ function onSave(v: string) {
   justify-content: space-between;
   gap: 8px;
   padding: 8px 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.85);
+  border-top: 1px solid color-mix(in srgb, var(--clay-on-dark, #fff) 12%, transparent);
+  color: color-mix(in srgb, var(--clay-on-dark, #fff) 85%, transparent);
   font-size: 13px;
 }
 
 .folder-empty,
 .list-empty {
   padding: 8px 16px 8px 32px;
-  color: rgba(255, 255, 255, 0.35);
+  color: color-mix(in srgb, var(--clay-on-dark, #fff) 40%, transparent);
   font-size: 12px;
 }
 
@@ -594,6 +614,6 @@ function onSave(v: string) {
 .editor-title {
   font-size: 16px;
   font-weight: 600;
-  color: rgba(0, 0, 0, 0.88);
+  color: var(--clay-ink, #0a0a0a);
 }
 </style>

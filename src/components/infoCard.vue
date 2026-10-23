@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 const VARIANTS = ['pink', 'teal', 'lavender', 'peach', 'ochre', 'cream'] as const
 
@@ -18,13 +18,50 @@ const variant = computed(() => {
   return VARIANTS[i]
 })
 
+const pressed = ref(false)
+const ripples = ref<{ id: number; x: number; y: number }[]>([])
+let rippleId = 0
+
 function openButtonHref() {
   window.open(props.buttonHref, '_blank')
+}
+
+function onPointerDown(e: PointerEvent) {
+  pressed.value = true
+  const el = e.currentTarget as HTMLElement
+  const rect = el.getBoundingClientRect()
+  const id = ++rippleId
+  ripples.value.push({
+    id,
+    x: e.clientX - rect.left,
+    y: e.clientY - rect.top,
+  })
+  window.setTimeout(() => {
+    ripples.value = ripples.value.filter(r => r.id !== id)
+  }, 520)
+}
+
+function onPointerUp() {
+  pressed.value = false
 }
 </script>
 
 <template>
-  <div class="card" :class="`card--${variant}`" @click="openButtonHref">
+  <div
+    class="card"
+    :class="[`card--${variant}`, { 'is-pressed': pressed }]"
+    @click="openButtonHref"
+    @pointerdown="onPointerDown"
+    @pointerup="onPointerUp"
+    @pointerleave="onPointerUp"
+    @pointercancel="onPointerUp"
+  >
+    <span
+      v-for="r in ripples"
+      :key="r.id"
+      class="ripple"
+      :style="{ left: `${r.x}px`, top: `${r.y}px` }"
+    />
     <div class="card-body">
       <p class="heading">{{ title }}</p>
       <p class="desc">{{ content }}</p>
@@ -36,24 +73,30 @@ function openButtonHref() {
 <style scoped>
 .card {
   position: relative;
-  width: 220px;
-  min-height: 200px;
+  width: 240px;
+  min-height: 220px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   gap: 16px;
-  padding: 24px;
+  padding: 32px;
   border-radius: var(--clay-rounded-xl, 24px);
   cursor: pointer;
   box-sizing: border-box;
+  overflow: hidden;
   transition:
-    transform 0.25s ease,
-    box-shadow 0.25s ease;
+    transform 0.35s cubic-bezier(0.34, 1.45, 0.64, 1),
+    box-shadow 0.35s ease;
 }
 
 .card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(10, 10, 10, 0.08);
+  transform: translateY(-7px);
+  box-shadow: 0 14px 28px rgba(10, 10, 10, 0.1);
+}
+
+.card.is-pressed {
+  transform: translateY(-2px) scale(0.98);
+  transition-duration: 0.12s;
 }
 
 .card--pink {
@@ -87,7 +130,28 @@ function openButtonHref() {
   border: 1px solid var(--clay-hairline, #e5e5e5);
 }
 
+.ripple {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--clay-canvas, #fffaf0) 55%, transparent);
+  pointer-events: none;
+  animation: ripple-out 0.5s ease-out forwards;
+  z-index: 0;
+}
+
+@keyframes ripple-out {
+  to {
+    transform: scale(28);
+    opacity: 0;
+  }
+}
+
 .card-body {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -100,7 +164,6 @@ function openButtonHref() {
   font-weight: 600;
   line-height: 1.4;
   letter-spacing: 0;
-  text-transform: none;
 }
 
 .desc {
@@ -112,6 +175,8 @@ function openButtonHref() {
 }
 
 .card-button {
+  position: relative;
+  z-index: 1;
   align-self: flex-start;
   border: none;
   border-radius: var(--clay-rounded-md, 12px);
@@ -121,9 +186,11 @@ function openButtonHref() {
   font-weight: 600;
   line-height: 1;
   padding: 12px 20px;
-  height: 40px;
+  height: 44px;
   cursor: pointer;
-  transition: background-color 0.2s ease, transform 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    transform 0.28s cubic-bezier(0.34, 1.45, 0.64, 1);
 }
 
 .card--cream .card-button {
@@ -132,11 +199,15 @@ function openButtonHref() {
 }
 
 .card-button:hover {
-  transform: translateY(-1px);
+  transform: scale(1.05);
   background: #ffffff;
 }
 
 .card--cream .card-button:hover {
   background: var(--clay-primary-active, #1f1f1f);
+}
+
+.card-button:active {
+  transform: scale(0.96);
 }
 </style>

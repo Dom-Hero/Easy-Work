@@ -41,7 +41,7 @@ export interface CardNavProps {
 const props = withDefaults(defineProps<CardNavProps>(), {
   logoAlt: 'Logo',
   className: '',
-  ease: 'power3.out',
+  ease: 'back.out(1.2)',
   baseColor: '#fff',
   searchPlaceholder: '搜索卡片...'
 });
@@ -108,11 +108,15 @@ const createTimeline = () => {
 
   tl.to(navEl, {
     height: calculateHeight,
-    duration: 0.4,
+    duration: 0.48,
     ease: props.ease
   });
 
-  tl.to(cardsRef.value, { y: 0, opacity: 1, duration: 0.4, ease: props.ease, stagger: 0.08 }, '-=0.1');
+  tl.to(
+    cardsRef.value,
+    { y: 0, opacity: 1, duration: 0.42, ease: 'back.out(1.35)', stagger: 0.07 },
+    '-=0.18'
+  );
 
   return tl;
 };

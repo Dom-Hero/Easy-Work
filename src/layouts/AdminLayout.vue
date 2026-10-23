@@ -66,12 +66,12 @@ function navigate(path: string) {
       :line-count="lineCount"
       :line-distance="lineDistance"
       :lines-gradient="linesGradient"
-      :animation-speed="0.4"
-      :bend-radius="6.0"
-      :bend-strength="-0.25"
+      :animation-speed="0.32"
+      :bend-radius="5.5"
+      :bend-strength="-0.18"
       :interactive="true"
       :parallax="true"
-      :parallax-strength="0.08"
+      :parallax-strength="0.05"
       interaction-scope="parent"
       mix-blend-mode="normal"
     />
@@ -82,7 +82,7 @@ function navigate(path: string) {
         menu-color="#0a0a0a"
         button-bg-color="#0a0a0a"
         button-text-color="#ffffff"
-        ease="power3.out"
+        ease="back.out(1.2)"
         search-placeholder="搜索工具..."
       />
     </div>
@@ -108,7 +108,7 @@ function navigate(path: string) {
   position: absolute;
   inset: 0;
   z-index: 0;
-  opacity: 0.85;
+  opacity: 0.7;
 }
 
 .layout-header {
