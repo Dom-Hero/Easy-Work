@@ -57,22 +57,24 @@ uniform vec3 lineGradient[8];
 uniform int lineGradientCount;
 
 const vec3 BLACK = vec3(0.0);
-const vec3 PINK  = vec3(233.0, 71.0, 245.0) / 255.0;
-const vec3 BLUE  = vec3(47.0,  75.0, 162.0) / 255.0;
+/* Clay warm pastels (peach / lavender) — replaces neon pink/blue */
+const vec3 PINK  = vec3(255.0, 176.0, 132.0) / 255.0;
+const vec3 BLUE  = vec3(184.0, 164.0, 237.0) / 255.0;
+const vec3 CANVAS = vec3(255.0, 250.0, 240.0) / 255.0;
 
 mat2 rotate(float r) {
   return mat2(cos(r), sin(r), -sin(r), cos(r));
 }
 
 vec3 background_color(vec2 uv) {
-  vec3 col = vec3(0.0);
+  vec3 col = CANVAS;
 
   float y = sin(uv.x - 0.2) * 0.3 - 0.1;
   float m = uv.y - y;
 
-  col += mix(BLUE, BLACK, smoothstep(0.0, 1.0, abs(m)));
-  col += mix(PINK, BLACK, smoothstep(0.0, 1.0, abs(m - 0.8)));
-  return col * 0.5;
+  col = mix(col, mix(BLUE, CANVAS, smoothstep(0.0, 1.0, abs(m) * 1.2)), 0.35);
+  col = mix(col, mix(PINK, CANVAS, smoothstep(0.0, 1.0, abs(m - 0.8) * 1.2)), 0.3);
+  return col;
 }
 
 vec3 getLineColor(float t, vec3 baseColor) {
@@ -97,7 +99,7 @@ vec3 getLineColor(float t, vec3 baseColor) {
     gradientColor = mix(c1, c2, f);
   }
 
-  return gradientColor * 0.5;
+  return mix(CANVAS, gradientColor, 0.45);
 }
 
 float wave(vec2 uv, float offset, vec2 screenUv, vec2 mouseUv, bool shouldBend) {
@@ -127,9 +129,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     baseUv += parallaxOffset;
   }
 
-  vec3 col = vec3(0.0);
+  /* Cream floor when custom gradient (Clay shell); dark additive look otherwise */
+  vec3 col = lineGradientCount > 0 ? CANVAS : vec3(0.0);
 
-  vec3 b = lineGradientCount > 0 ? vec3(0.0) : background_color(baseUv);
+  vec3 b = lineGradientCount > 0 ? CANVAS : background_color(baseUv);
 
   vec2 mouseUv = vec2(0.0);
   if (interactive) {
@@ -331,7 +334,8 @@ const setup = () => {
   const camera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
   camera.position.z = 1;
 
-  const renderer = new WebGLRenderer({ antialias: true, alpha: false });
+  const renderer = new WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setClearColor(0xfffaf0, 1);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.domElement.style.width = '100%';
   renderer.domElement.style.height = '100%';

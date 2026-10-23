@@ -256,7 +256,7 @@ watch(
           v-for="(item, idx) in (props.items || []).slice(0, 3)"
           :key="`${item.label}-${idx}`"
           :ref="setCardRef(idx)"
-          class="relative flex flex-col flex-[1_1_auto] md:flex-[1_1_0%] gap-2 p-[12px_16px] rounded-[calc(0.75rem-0.2rem)] min-w-0 h-auto md:h-full min-h-[60px] md:min-h-0 select-none nav-card"
+          class="relative flex flex-col flex-[1_1_auto] md:flex-[1_1_0%] gap-2 p-[12px_16px] rounded-[16px] min-w-0 h-auto md:h-full min-h-[60px] md:min-h-0 select-none nav-card"
           :style="{ backgroundColor: item.bgColor, color: item.textColor }"
         >
           <div class="h-full w-full" role="link" tabindex="0" @click="navigateToUser" @keydown.enter="navigateToUser">
@@ -270,46 +270,28 @@ watch(
 
 <style scoped>
 .card-nav {
-  --glass-tint: var(--nav-glass-tint, #ffffff);
-
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--glass-tint) 28%, transparent) 0%,
-      color-mix(in srgb, var(--glass-tint) 14%, transparent) 100%
-    );
-  backdrop-filter: blur(40px) saturate(200%);
-  -webkit-backdrop-filter: blur(40px) saturate(200%);
-  border: 0.5px solid rgba(255, 255, 255, 0.28);
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.06),
-    inset 0 0.5px 0 rgba(255, 255, 255, 0.5),
-    inset 0 -0.5px 0 rgba(255, 255, 255, 0.06);
+  --glass-tint: var(--nav-glass-tint, var(--clay-canvas, #fffaf0));
+  background: color-mix(in srgb, var(--glass-tint) 92%, transparent);
+  backdrop-filter: blur(16px) saturate(120%);
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
+  border: 1px solid var(--clay-hairline, #e5e5e5);
+  border-radius: var(--clay-rounded-xl, 24px);
+  box-shadow: 0 4px 20px rgba(10, 10, 10, 0.04);
 }
 
 .card-nav.open {
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--glass-tint) 28%, transparent) 0%,
-      color-mix(in srgb, var(--glass-tint) 14%, transparent) 100%
-    );
-  backdrop-filter: blur(48px) saturate(200%);
-  -webkit-backdrop-filter: blur(48px) saturate(200%);
-  border-color: rgba(255, 255, 255, 0.32);
-  box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.08),
-    inset 0 0.5px 0 rgba(255, 255, 255, 0.55),
-    inset 0 -0.5px 0 rgba(255, 255, 255, 0.08);
+  background: var(--clay-canvas, #fffaf0);
+  border-color: var(--clay-hairline, #e5e5e5);
+  box-shadow: 0 8px 28px rgba(10, 10, 10, 0.06);
 }
 
 @supports not (backdrop-filter: blur(1px)) {
   .card-nav {
-    background: color-mix(in srgb, var(--glass-tint) 75%, transparent);
+    background: var(--clay-canvas, #fffaf0);
   }
 
   .card-nav.open {
-    background: color-mix(in srgb, var(--glass-tint) 82%, transparent);
+    background: var(--clay-canvas, #fffaf0);
   }
 }
 
@@ -350,68 +332,21 @@ watch(
   align-items: center;
   gap: 8px;
   width: 100%;
-  height: 36px;
-  padding: 0 14px;
-  border-radius: 9999px;
+  height: 44px;
+  padding: 0 16px;
+  border-radius: var(--clay-rounded-md, 12px);
   cursor: text;
   isolation: isolate;
   overflow: hidden;
-  border: 0.5px solid rgba(255, 255, 255, 0.38);
-  background:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.24) 0%,
-      rgba(255, 255, 255, 0.06) 100%
-    );
-  backdrop-filter: blur(18px) saturate(190%) brightness(1.1);
-  -webkit-backdrop-filter: blur(18px) saturate(190%) brightness(1.1);
-  box-shadow:
-    inset 0 0.5px 0 rgba(255, 255, 255, 0.58),
-    inset 0 -0.5px 0 rgba(255, 255, 255, 0.1),
-    0 2px 10px rgba(0, 0, 0, 0.05);
-  transition:
-    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.28s ease,
-    border-color 0.28s ease;
-}
-
-.card-nav-search::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(
-    ellipse 90% 60% at 50% -10%,
-    rgba(255, 255, 255, 0.42) 0%,
-    transparent 72%
-  );
-  pointer-events: none;
-}
-
-.card-nav-search::after {
-  content: '';
-  position: absolute;
-  inset: 1px;
-  border-radius: inherit;
-  background: radial-gradient(
-    circle at 50% 120%,
-    rgba(255, 255, 255, 0.12) 0%,
-    transparent 55%
-  );
-  pointer-events: none;
-  opacity: 0.8;
+  border: 1px solid var(--clay-hairline, #e5e5e5);
+  background: var(--clay-canvas, #fffaf0);
+  box-shadow: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .card-nav-search:focus-within {
-  transform: scale(1.04);
-  border-color: rgba(255, 255, 255, 0.52);
-  backdrop-filter: blur(28px) saturate(210%) brightness(1.16) contrast(1.04);
-  -webkit-backdrop-filter: blur(28px) saturate(210%) brightness(1.16) contrast(1.04);
-  box-shadow:
-    inset 0 0.5px 0 rgba(255, 255, 255, 0.72),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.12),
-    0 4px 18px rgba(0, 0, 0, 0.08),
-    0 0 0 3px rgba(255, 255, 255, 0.14);
+  border-color: var(--clay-ink, #0a0a0a);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--clay-brand-lavender, #b8a4ed) 35%, transparent);
 }
 
 .card-nav-search-icon {
@@ -434,13 +369,14 @@ watch(
   outline: none;
   background: transparent;
   font-size: 14px;
+  font-weight: 400;
   line-height: 1;
-  color: inherit;
+  color: var(--clay-ink, #0a0a0a);
 }
 
 .card-nav-search-input::placeholder {
-  color: currentColor;
-  opacity: 0.42;
+  color: var(--clay-muted-soft, #9a9a9a);
+  opacity: 1;
 }
 
 .card-nav-search-input::-webkit-search-cancel-button {

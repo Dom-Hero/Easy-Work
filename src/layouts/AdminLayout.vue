@@ -11,8 +11,8 @@ const menuOpen = ref(false)
 const items = [
   {
     label: "About",
-    bgColor: "transparent",
-    textColor: "#fff",
+    bgColor: "var(--clay-surface-soft)",
+    textColor: "var(--clay-ink)",
     links: [
       { label: "Company", ariaLabel: "About Company" },
       { label: "Careers", ariaLabel: "About Careers" }
@@ -20,8 +20,8 @@ const items = [
   },
   {
     label: "Projects",
-    bgColor: "transparent",
-    textColor: "#fff",
+    bgColor: "var(--clay-surface-card)",
+    textColor: "var(--clay-ink)",
     links: [
       { label: "Featured", ariaLabel: "Featured Projects" },
       { label: "Case Studies", ariaLabel: "Project Case Studies" }
@@ -29,8 +29,8 @@ const items = [
   },
   {
     label: "Contact",
-    bgColor: "transparent",
-    textColor: "#fff",
+    bgColor: "var(--clay-brand-peach)",
+    textColor: "var(--clay-ink)",
     links: [
       { label: "Email", ariaLabel: "Email us" },
       { label: "Twitter", ariaLabel: "Twitter" },
@@ -41,8 +41,10 @@ const items = [
 
 // lineCount 按 enabledWaves 顺序对应每层：[top, middle, bottom]
 const enabledWaves: Array<'top' | 'middle' | 'bottom'> = ['top', 'middle', 'bottom']
-const lineCount = [5, 5, 5]
-const lineDistance = [8, 6, 4]
+const lineCount = [4, 4, 3]
+const lineDistance = [10, 8, 6]
+/** Warm pastel clay lines — low contrast on cream canvas */
+const linesGradient = ['#ffb084', '#e8b94a', '#b8a4ed', '#a4d4c5']
 
 const activePath = computed(() => route.path)
 
@@ -58,12 +60,31 @@ function navigate(path: string) {
 
 <template>
   <div class="layout">
-    <FloatingLines class="layout-bg" :enabled-waves="enabledWaves" :line-count="lineCount" :line-distance="lineDistance"
-      :bend-radius="5.0" :bend-strength="-0.5" :interactive="true" :parallax="true" interaction-scope="parent"
-      mix-blend-mode="normal" />
+    <FloatingLines
+      class="layout-bg"
+      :enabled-waves="enabledWaves"
+      :line-count="lineCount"
+      :line-distance="lineDistance"
+      :lines-gradient="linesGradient"
+      :animation-speed="0.4"
+      :bend-radius="6.0"
+      :bend-strength="-0.25"
+      :interactive="true"
+      :parallax="true"
+      :parallax-strength="0.08"
+      interaction-scope="parent"
+      mix-blend-mode="normal"
+    />
     <div class="layout-header">
-      <CardNav :items="items" baseColor="#fff" menuColor="#000" buttonBgColor="#111"
-        buttonTextColor="#fff" ease="power3.out" search-placeholder="搜索工具..." />
+      <CardNav
+        :items="items"
+        base-color="#fffaf0"
+        menu-color="#0a0a0a"
+        button-bg-color="#0a0a0a"
+        button-text-color="#ffffff"
+        ease="power3.out"
+        search-placeholder="搜索工具..."
+      />
     </div>
     <div class="content">
       <RouterView />
@@ -80,12 +101,14 @@ function navigate(path: string) {
   min-height: 100vh;
   height: 100vh;
   overflow: hidden;
+  background-color: var(--clay-canvas, #fffaf0);
 }
 
 .layout-bg {
   position: absolute;
   inset: 0;
   z-index: 0;
+  opacity: 0.85;
 }
 
 .layout-header {

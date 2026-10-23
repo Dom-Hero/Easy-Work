@@ -17,8 +17,8 @@ const filteredList = computed(() => {
   )
 })
 
-const CARD_WIDTH = 190
-const GAP = 50
+const CARD_WIDTH = 220
+const GAP = 28
 const CONTAINER_PADDING = 64
 
 const pageRef = ref<HTMLElement | null>(null)
@@ -51,11 +51,12 @@ onUnmounted(() => observer?.disconnect())
       :style="containerWidth ? { width: `${containerWidth}px` } : undefined"
     >
       <InfoCard
-        v-for="item in filteredList"
+        v-for="(item, index) in filteredList"
         :key="item.href"
         :title="item.title"
         :content="item.content"
         :button-href="item.href"
+        :color-index="index"
       />
       <p v-if="filteredList.length === 0" class="empty-tip">未找到匹配的卡片</p>
     </div>
@@ -78,7 +79,7 @@ onUnmounted(() => observer?.disconnect())
   flex-wrap: wrap;
   justify-content: flex-start;
   align-content: flex-start;
-  gap: 50px;
+  gap: 28px;
   margin-top: auto;
   margin-bottom: auto;
   padding: 32px;
@@ -92,7 +93,7 @@ onUnmounted(() => observer?.disconnect())
   margin: 0;
   padding: 48px 0;
   text-align: center;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--clay-muted, #6a6a6a);
   font-size: 15px;
 }
 </style>

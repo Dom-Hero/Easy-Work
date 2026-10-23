@@ -1,53 +1,49 @@
-/* color palette from <https://github.com/vuejs/theme> */
+/* Clay design tokens — from DESIGN-clay.md */
 :root {
-  --vt-c-white: #ffffff;
-  --vt-c-white-soft: #f8f8f8;
-  --vt-c-white-mute: #f2f2f2;
+  --clay-primary: #0a0a0a;
+  --clay-primary-active: #1f1f1f;
+  --clay-primary-disabled: #e5e5e5;
+  --clay-ink: #0a0a0a;
+  --clay-body: #3a3a3a;
+  --clay-body-strong: #1a1a1a;
+  --clay-muted: #6a6a6a;
+  --clay-muted-soft: #9a9a9a;
+  --clay-hairline: #e5e5e5;
+  --clay-hairline-soft: #f0f0f0;
+  --clay-canvas: #fffaf0;
+  --clay-surface-soft: #faf5e8;
+  --clay-surface-card: #f5f0e0;
+  --clay-surface-strong: #ebe6d6;
+  --clay-surface-dark: #0a1a1a;
+  --clay-on-primary: #ffffff;
+  --clay-on-dark: #ffffff;
+  --clay-on-dark-soft: #a0a0a0;
+  --clay-brand-pink: #ff4d8b;
+  --clay-brand-teal: #1a3a3a;
+  --clay-brand-lavender: #b8a4ed;
+  --clay-brand-peach: #ffb084;
+  --clay-brand-ochre: #e8b94a;
+  --clay-brand-mint: #a4d4c5;
+  --clay-brand-coral: #ff6b5a;
 
-  --vt-c-black: #181818;
-  --vt-c-black-soft: #222222;
-  --vt-c-black-mute: #282828;
+  --clay-rounded-md: 12px;
+  --clay-rounded-lg: 16px;
+  --clay-rounded-xl: 24px;
 
-  --vt-c-indigo: #2c3e50;
+  --clay-spacing-sm: 12px;
+  --clay-spacing-md: 16px;
+  --clay-spacing-lg: 24px;
+  --clay-spacing-xl: 32px;
 
-  --vt-c-divider-light-1: rgba(60, 60, 60, 0.29);
-  --vt-c-divider-light-2: rgba(60, 60, 60, 0.12);
-  --vt-c-divider-dark-1: rgba(84, 84, 84, 0.65);
-  --vt-c-divider-dark-2: rgba(84, 84, 84, 0.48);
-
-  --vt-c-text-light-1: var(--vt-c-indigo);
-  --vt-c-text-light-2: rgba(60, 60, 60, 0.66);
-  --vt-c-text-dark-1: var(--vt-c-white);
-  --vt-c-text-dark-2: rgba(235, 235, 235, 0.64);
-}
-
-/* semantic color variables for this project */
-:root {
-  --color-background: var(--vt-c-white);
-  --color-background-soft: var(--vt-c-white-soft);
-  --color-background-mute: var(--vt-c-white-mute);
-
-  --color-border: var(--vt-c-divider-light-2);
-  --color-border-hover: var(--vt-c-divider-light-1);
-
-  --color-heading: var(--vt-c-text-light-1);
-  --color-text: var(--vt-c-text-light-1);
-
-  --section-gap: 160px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-background: var(--vt-c-black);
-    --color-background-soft: var(--vt-c-black-soft);
-    --color-background-mute: var(--vt-c-black-mute);
-
-    --color-border: var(--vt-c-divider-dark-2);
-    --color-border-hover: var(--vt-c-divider-dark-1);
-
-    --color-heading: var(--vt-c-text-dark-1);
-    --color-text: var(--vt-c-text-dark-2);
-  }
+  /* App semantic aliases (shell stays Clay cream; no dark-scheme flip) */
+  --color-background: var(--clay-canvas);
+  --color-background-soft: var(--clay-surface-soft);
+  --color-background-mute: var(--clay-surface-card);
+  --color-border: var(--clay-hairline);
+  --color-border-hover: var(--clay-muted-soft);
+  --color-heading: var(--clay-ink);
+  --color-text: var(--clay-body);
+  --section-gap: 96px;
 }
 
 *,
