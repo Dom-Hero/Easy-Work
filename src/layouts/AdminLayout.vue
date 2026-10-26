@@ -3,6 +3,8 @@ import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import FloatingLines from '@/components/background/FloatingLines.vue'
 import CardNav from '@/components/CardNav.vue'
+import AiChatDrawer from '@/components/AiChatDrawer.vue'
+import clayOilLandscape from '@/assets/backgrounds/clay-oil-landscape.jpg'
 
 const route = useRoute()
 const router = useRouter()
@@ -39,11 +41,9 @@ const items = [
   }
 ]
 
-// lineCount 按 enabledWaves 顺序对应每层：[top, middle, bottom]
 const enabledWaves: Array<'top' | 'middle' | 'bottom'> = ['top', 'middle', 'bottom']
-const lineCount = [4, 4, 3]
-const lineDistance = [10, 8, 6]
-/** Warm pastel clay lines — low contrast on cream canvas */
+const lineCount = [3, 3, 2]
+const lineDistance = [12, 10, 8]
 const linesGradient = ['#ffb084', '#e8b94a', '#b8a4ed', '#a4d4c5']
 
 const activePath = computed(() => route.path)
@@ -60,20 +60,26 @@ function navigate(path: string) {
 
 <template>
   <div class="layout">
+    <div
+      class="layout-paint"
+      :style="{ backgroundImage: `url(${clayOilLandscape})` }"
+      aria-hidden="true"
+    />
+    <div class="layout-paint-veil" aria-hidden="true" />
     <FloatingLines
       class="layout-bg"
       :enabled-waves="enabledWaves"
       :line-count="lineCount"
       :line-distance="lineDistance"
       :lines-gradient="linesGradient"
-      :animation-speed="0.32"
+      :animation-speed="0.28"
       :bend-radius="5.5"
-      :bend-strength="-0.18"
+      :bend-strength="-0.14"
       :interactive="true"
       :parallax="true"
-      :parallax-strength="0.05"
+      :parallax-strength="0.04"
       interaction-scope="parent"
-      mix-blend-mode="normal"
+      mix-blend-mode="soft-light"
     />
     <div class="layout-header">
       <CardNav
@@ -89,6 +95,7 @@ function navigate(path: string) {
     <div class="content">
       <RouterView />
     </div>
+    <AiChatDrawer />
   </div>
 </template>
 
@@ -104,11 +111,53 @@ function navigate(path: string) {
   background-color: var(--clay-canvas, #fffaf0);
 }
 
+.layout-paint {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-color: var(--clay-canvas, #fffaf0);
+  background-repeat: no-repeat;
+  background-position: center bottom;
+  background-size: cover;
+  transform: scale(1.02);
+  animation: paint-drift 28s ease-in-out infinite alternate;
+}
+
+.layout-paint-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--clay-canvas, #fffaf0) 78%, transparent) 0%,
+      color-mix(in srgb, var(--clay-canvas, #fffaf0) 42%, transparent) 42%,
+      color-mix(in srgb, var(--clay-canvas, #fffaf0) 18%, transparent) 72%,
+      color-mix(in srgb, var(--clay-canvas, #fffaf0) 8%, transparent) 100%
+    ),
+    radial-gradient(
+      ellipse 90% 55% at 50% 12%,
+      color-mix(in srgb, var(--clay-canvas, #fffaf0) 70%, transparent) 0%,
+      transparent 70%
+    );
+}
+
 .layout-bg {
   position: absolute;
   inset: 0;
   z-index: 0;
-  opacity: 0.7;
+  opacity: 0.28;
+  pointer-events: none;
+}
+
+@keyframes paint-drift {
+  from {
+    transform: scale(1.02) translate3d(0, 0, 0);
+  }
+  to {
+    transform: scale(1.06) translate3d(0, -1.2%, 0);
+  }
 }
 
 .layout-header {
@@ -138,5 +187,11 @@ function navigate(path: string) {
 
 .content::-webkit-scrollbar {
   display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .layout-paint {
+    animation: none;
+  }
 }
 </style>

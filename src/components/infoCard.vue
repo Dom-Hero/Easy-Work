@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
-const VARIANTS = ['pink', 'teal', 'lavender', 'peach', 'ochre', 'cream'] as const
+/** Warm→cool soft continuum (no deep teal / hot pink jumps) */
+const VARIANTS = ['cream', 'peach', 'blush', 'sand', 'mint', 'lilac'] as const
 
 const props = withDefaults(
   defineProps<{
@@ -81,17 +82,21 @@ function onPointerUp() {
   gap: 16px;
   padding: 32px;
   border-radius: var(--clay-rounded-xl, 24px);
+  border: 1px solid color-mix(in srgb, var(--clay-ink, #0a0a0a) 6%, transparent);
+  color: var(--clay-ink, #0a0a0a);
   cursor: pointer;
   box-sizing: border-box;
   overflow: hidden;
   transition:
     transform 0.35s cubic-bezier(0.34, 1.45, 0.64, 1),
-    box-shadow 0.35s ease;
+    box-shadow 0.35s ease,
+    border-color 0.25s ease;
 }
 
 .card:hover {
   transform: translateY(-7px);
-  box-shadow: 0 14px 28px rgba(10, 10, 10, 0.1);
+  box-shadow: 0 14px 28px rgba(10, 10, 10, 0.08);
+  border-color: color-mix(in srgb, var(--clay-ink, #0a0a0a) 10%, transparent);
 }
 
 .card.is-pressed {
@@ -99,35 +104,28 @@ function onPointerUp() {
   transition-duration: 0.12s;
 }
 
-.card--pink {
-  background-color: var(--clay-brand-pink, #ff4d8b);
-  color: var(--clay-on-primary, #fff);
-}
-
-.card--teal {
-  background-color: var(--clay-brand-teal, #1a3a3a);
-  color: var(--clay-on-dark, #fff);
-}
-
-.card--lavender {
-  background-color: var(--clay-brand-lavender, #b8a4ed);
-  color: var(--clay-ink, #0a0a0a);
+.card--cream {
+  background-color: var(--clay-card-cream, #f3eee0);
 }
 
 .card--peach {
-  background-color: var(--clay-brand-peach, #ffb084);
-  color: var(--clay-ink, #0a0a0a);
+  background-color: var(--clay-card-peach, #ffd2b3);
 }
 
-.card--ochre {
-  background-color: var(--clay-brand-ochre, #e8b94a);
-  color: var(--clay-ink, #0a0a0a);
+.card--blush {
+  background-color: var(--clay-card-blush, #ffc4c0);
 }
 
-.card--cream {
-  background-color: var(--clay-surface-card, #f5f0e0);
-  color: var(--clay-ink, #0a0a0a);
-  border: 1px solid var(--clay-hairline, #e5e5e5);
+.card--sand {
+  background-color: var(--clay-card-sand, #f0d9a0);
+}
+
+.card--mint {
+  background-color: var(--clay-card-mint, #c5dfd4);
+}
+
+.card--lilac {
+  background-color: var(--clay-card-lilac, #d2c6ef);
 }
 
 .ripple {
@@ -136,7 +134,7 @@ function onPointerUp() {
   height: 12px;
   margin: -6px 0 0 -6px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--clay-canvas, #fffaf0) 55%, transparent);
+  background: color-mix(in srgb, var(--clay-canvas, #fffaf0) 65%, transparent);
   pointer-events: none;
   animation: ripple-out 0.5s ease-out forwards;
   z-index: 0;
@@ -164,6 +162,7 @@ function onPointerUp() {
   font-weight: 600;
   line-height: 1.4;
   letter-spacing: 0;
+  color: var(--clay-ink, #0a0a0a);
 }
 
 .desc {
@@ -171,16 +170,16 @@ function onPointerUp() {
   font-size: 14px;
   font-weight: 400;
   line-height: 1.55;
-  opacity: 0.88;
+  color: var(--clay-body, #3a3a3a);
 }
 
 .card-button {
   position: relative;
   z-index: 1;
   align-self: flex-start;
-  border: none;
+  border: 1px solid color-mix(in srgb, var(--clay-ink, #0a0a0a) 12%, transparent);
   border-radius: var(--clay-rounded-md, 12px);
-  background: var(--clay-canvas, #fffaf0);
+  background: color-mix(in srgb, var(--clay-canvas, #fffaf0) 82%, #ffffff);
   color: var(--clay-ink, #0a0a0a);
   font-size: 14px;
   font-weight: 600;
@@ -190,21 +189,14 @@ function onPointerUp() {
   cursor: pointer;
   transition:
     background-color 0.2s ease,
+    border-color 0.2s ease,
     transform 0.28s cubic-bezier(0.34, 1.45, 0.64, 1);
-}
-
-.card--cream .card-button {
-  background: var(--clay-primary, #0a0a0a);
-  color: var(--clay-on-primary, #fff);
 }
 
 .card-button:hover {
   transform: scale(1.05);
   background: #ffffff;
-}
-
-.card--cream .card-button:hover {
-  background: var(--clay-primary-active, #1f1f1f);
+  border-color: color-mix(in srgb, var(--clay-ink, #0a0a0a) 22%, transparent);
 }
 
 .card-button:active {

@@ -26,6 +26,14 @@
   --clay-brand-mint: #a4d4c5;
   --clay-brand-coral: #ff6b5a;
 
+  /* Soft feature-card surfaces — warm→cool continuum for natural grid rhythm */
+  --clay-card-cream: #f3eee0;
+  --clay-card-peach: #ffd2b3;
+  --clay-card-blush: #ffc4c0;
+  --clay-card-sand: #f0d9a0;
+  --clay-card-mint: #c5dfd4;
+  --clay-card-lilac: #d2c6ef;
+
   --clay-rounded-md: 12px;
   --clay-rounded-lg: 16px;
   --clay-rounded-xl: 24px;
