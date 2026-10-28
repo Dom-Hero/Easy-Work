@@ -91,7 +91,7 @@ watch(isOpen, (v) => {
   z-index: 1;
   display: flex;
   flex-direction: column;
-  width: min(28rem, 100vw);
+  width: min(56rem, 100vw);
   height: 100%;
   background: var(--clay-canvas, #fffaf0);
   border-left: 1px solid var(--clay-hairline, #e5e5e5);

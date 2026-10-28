@@ -1,14 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import FloatingLines from '@/components/background/FloatingLines.vue'
 import CardNav from '@/components/CardNav.vue'
 import AiChatDrawer from '@/components/AiChatDrawer.vue'
 import clayOilLandscape from '@/assets/backgrounds/clay-oil-landscape.jpg'
-
-const route = useRoute()
-const router = useRouter()
-const menuOpen = ref(false)
 
 const items = [
   {
@@ -40,22 +33,6 @@ const items = [
     ]
   }
 ]
-
-const enabledWaves: Array<'top' | 'middle' | 'bottom'> = ['top', 'middle', 'bottom']
-const lineCount = [3, 3, 2]
-const lineDistance = [12, 10, 8]
-const linesGradient = ['#ffb084', '#e8b94a', '#b8a4ed', '#a4d4c5']
-
-const activePath = computed(() => route.path)
-
-function toggleMenu() {
-  menuOpen.value = !menuOpen.value
-}
-
-function navigate(path: string) {
-  router.push(path)
-  menuOpen.value = false
-}
 </script>
 
 <template>
@@ -66,21 +43,6 @@ function navigate(path: string) {
       aria-hidden="true"
     />
     <div class="layout-paint-veil" aria-hidden="true" />
-    <FloatingLines
-      class="layout-bg"
-      :enabled-waves="enabledWaves"
-      :line-count="lineCount"
-      :line-distance="lineDistance"
-      :lines-gradient="linesGradient"
-      :animation-speed="0.28"
-      :bend-radius="5.5"
-      :bend-strength="-0.14"
-      :interactive="true"
-      :parallax="true"
-      :parallax-strength="0.04"
-      interaction-scope="parent"
-      mix-blend-mode="soft-light"
-    />
     <div class="layout-header">
       <CardNav
         :items="items"
@@ -141,14 +103,6 @@ function navigate(path: string) {
       color-mix(in srgb, var(--clay-canvas, #fffaf0) 70%, transparent) 0%,
       transparent 70%
     );
-}
-
-.layout-bg {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  opacity: 0.28;
-  pointer-events: none;
 }
 
 @keyframes paint-drift {
