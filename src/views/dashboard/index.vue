@@ -24,9 +24,112 @@ const CONTAINER_PADDING = 64
 
 const pageRef = ref<HTMLElement | null>(null)
 const heroRef = ref<HTMLElement | null>(null)
+const decorRef = ref<HTMLElement | null>(null)
 const gridRef = ref<HTMLElement | null>(null)
 const containerWidth = ref<number>()
+const decorExpanded = ref(false)
+const mascotSrc = `${import.meta.env.BASE_URL}favicon.ico`
 let introReady = false
+let spinTweens: gsap.core.Tween[] = []
+
+const BLOB_EXPAND = [
+  { x: 40, y: -56, scale: 1.05, spinDuration: 14 },
+  { x: -48, y: 38, scale: 1.05, spinDuration: -16 },
+  { x: 56, y: 18, scale: 1.06, spinDuration: 12 },
+  { x: 36, y: 46, scale: 1.08, spinDuration: -18 },
+] as const
+
+function getDecorBlobs() {
+  return decorRef.value?.querySelectorAll<HTMLElement>('.hero-blob') ?? []
+}
+
+function getDecorMascot() {
+  return decorRef.value?.querySelector<HTMLElement>('.hero-mascot') ?? null
+}
+
+function expandDecor() {
+  if (decorExpanded.value) return
+  const blobs = [...getDecorBlobs()]
+  if (!blobs.length) return
+
+  decorExpanded.value = true
+  spinTweens.forEach(tween => tween.kill())
+  spinTweens = []
+
+  const mascot = getDecorMascot()
+  if (mascot) {
+    gsap.to(mascot, {
+      scale: 1.12,
+      duration: 1.2,
+      ease: 'back.out(1.6)',
+      overwrite: 'auto',
+    })
+  }
+
+  blobs.forEach((blob, index) => {
+    const cfg = BLOB_EXPAND[index]
+    if (!cfg) return
+
+    // CSS @keyframes 会覆盖 inline transform，必须关掉 animation 才能交给 GSAP
+    blob.style.animation = 'none'
+    gsap.set(blob, { x: 0, y: 0, scale: 1, rotation: 0 })
+    gsap.to(blob, {
+      x: cfg.x,
+      y: cfg.y,
+      scale: cfg.scale,
+      duration: 1.4,
+      ease: 'power2.out',
+      overwrite: 'auto',
+    })
+
+    const direction = cfg.spinDuration > 0 ? '+=360' : '-=360'
+    spinTweens.push(
+      gsap.to(blob, {
+        rotation: direction,
+        duration: Math.abs(cfg.spinDuration),
+        ease: 'none',
+        repeat: -1,
+        delay: 0.35,
+      }),
+    )
+  })
+}
+
+function collapseDecor() {
+  if (!decorExpanded.value) return
+  decorExpanded.value = false
+
+  spinTweens.forEach(tween => tween.kill())
+  spinTweens = []
+
+  const mascot = getDecorMascot()
+  if (mascot) {
+    gsap.to(mascot, {
+      scale: 1,
+      duration: 1.15,
+      ease: 'power2.inOut',
+      overwrite: 'auto',
+    })
+  }
+
+  const blobs = [...getDecorBlobs()]
+  gsap.to(blobs, {
+    x: 0,
+    y: 0,
+    scale: 1,
+    rotation: 0,
+    duration: 1.25,
+    ease: 'power2.inOut',
+    overwrite: 'auto',
+    stagger: 0.04,
+    onComplete: () => {
+      blobs.forEach(blob => {
+        gsap.set(blob, { clearProps: 'transform' })
+        blob.style.animation = ''
+      })
+    },
+  })
+}
 
 function updateLayout() {
   const page = pageRef.value
@@ -45,9 +148,11 @@ function playHeroIntro() {
   const title = hero.querySelector('.hero-title')
   const lead = hero.querySelector('.hero-lead')
   const decor = hero.querySelectorAll('.hero-blob')
+  const mascot = hero.querySelector('.hero-mascot')
 
   gsap.set([badge, title, lead], { opacity: 0, y: 18 })
   gsap.set(decor, { opacity: 0, scale: 0.7, rotate: -8 })
+  gsap.set(mascot, { opacity: 0, scale: 0.85 })
 
   const tl = gsap.timeline({ defaults: { ease: 'power3.out' } })
   tl.to(badge, { opacity: 1, y: 0, duration: 0.4 })
@@ -57,6 +162,11 @@ function playHeroIntro() {
       decor,
       { opacity: 1, scale: 1, rotate: 0, duration: 0.55, stagger: 0.08, ease: 'back.out(1.4)' },
       '-=0.35',
+    )
+    .to(
+      mascot,
+      { opacity: 1, scale: 1, duration: 0.4, ease: 'power2.out' },
+      '-=0.12',
     )
 }
 
@@ -99,6 +209,12 @@ onMounted(() => {
 onUnmounted(() => {
   observer?.disconnect()
   if (searchTimer) clearTimeout(searchTimer)
+  spinTweens.forEach(tween => tween.kill())
+  spinTweens = []
+  const blobs = getDecorBlobs()
+  if (blobs.length) gsap.killTweensOf(blobs)
+  const mascot = getDecorMascot()
+  if (mascot) gsap.killTweensOf(mascot)
 })
 
 watch(filteredList, () => {
@@ -119,7 +235,14 @@ watch(filteredList, () => {
         <h1 class="hero-title">把常用工具收进一块奶油色画布</h1>
         <p class="hero-lead">搜索、点选、跳转——用轻松一点的节奏打理你的入口。</p>
       </div>
-      <div class="hero-decor" aria-hidden="true">
+      <div
+        ref="decorRef"
+        class="hero-decor"
+        aria-hidden="true"
+        @click="expandDecor"
+        @mouseleave="collapseDecor"
+      >
+        <img class="hero-mascot" :src="mascotSrc" alt="" draggable="false" />
         <span class="hero-blob hero-blob--pink" />
         <span class="hero-blob hero-blob--peach" />
         <span class="hero-blob hero-blob--lavender" />
@@ -208,10 +331,27 @@ watch(filteredList, () => {
 .hero-decor {
   position: relative;
   height: 160px;
+  cursor: pointer;
+}
+
+.hero-mascot {
+  position: absolute;
+  z-index: 0;
+  top: 58px;
+  right: 48px;
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  transform-origin: center center;
+  opacity: 0;
+  filter: drop-shadow(0 2px 6px rgb(0 0 0 / 12%));
 }
 
 .hero-blob {
   position: absolute;
+  z-index: 1;
   border-radius: 32% 68% 55% 45% / 45% 40% 60% 55%;
   display: block;
 }
@@ -308,6 +448,13 @@ watch(filteredList, () => {
     height: 110px;
     justify-self: start;
     width: 180px;
+  }
+
+  .hero-mascot {
+    top: 38px;
+    right: 36px;
+    width: 32px;
+    height: 32px;
   }
 
   .hero-title {
