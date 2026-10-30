@@ -154,7 +154,7 @@ function normalizeBook(raw: LegacyEbookBook | EbookBook): EbookBook {
     lastVisitedAt: raw.lastVisitedAt,
     chapters: (raw.chapters ?? []).map((ch) => toChapterMeta(ch)),
   }
-  if (raw.status === 'parsing') book.status = 'parsing'
+  if ('status' in raw && raw.status === 'parsing') book.status = 'parsing'
   return book
 }
 

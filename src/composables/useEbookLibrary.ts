@@ -229,7 +229,7 @@ export function useEbookLibrary() {
     const now = new Date().toISOString()
     const pending: Array<{ id: string; content: string }> = []
     let sawText = false
-    let firstSlice: EbookSlice | null = null
+    const firstSlice: { current: EbookSlice | null } = { current: null }
     let lastProgressAt = 0
     let lastPct = -1
 
@@ -275,7 +275,7 @@ export function useEbookLibrary() {
         onSlice: async (slice) => {
           ensureActive()
           if (slice.content.trim()) sawText = true
-          if (!firstSlice && slice.index === 0) firstSlice = slice
+          if (!firstSlice.current && slice.index === 0) firstSlice.current = slice
           pending.push({ id: chapterSliceId(slice.chapterId, slice.index), content: slice.content })
           if (pending.length >= CONTENT_FLUSH_BATCH) await flushPending()
         },
@@ -309,8 +309,9 @@ export function useEbookLibrary() {
         ? books.value.map((b) => (b.id === bookId ? readyBook : b))
         : [readyBook, ...books.value]
       await enqueueBookMeta(bookId)
-      if (firstSlice) {
-        contentCache.set(chapterSliceId(firstSlice.chapterId, firstSlice.index), firstSlice.content)
+      if (firstSlice.current) {
+        const slice = firstSlice.current
+        contentCache.set(chapterSliceId(slice.chapterId, slice.index), slice.content)
       }
       return { ok: true, book: readyBook, encoding: encodingLabel(result.encoding) }
     } catch (error) {
