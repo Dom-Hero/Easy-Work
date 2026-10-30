@@ -6,7 +6,7 @@ import clayOilLandscape from '@/assets/backgrounds/clay-oil-landscape.jpg'
 const items = [
   {
     label: "About",
-    bgColor: "var(--clay-surface-soft)",
+    bgColor: "var(--clay-surface-card)",
     textColor: "var(--clay-ink)",
     links: [
       { label: "Company", ariaLabel: "About Company" },
@@ -24,7 +24,7 @@ const items = [
   },
   {
     label: "Contact",
-    bgColor: "var(--clay-brand-peach)",
+    bgColor: "var(--clay-surface-card)",
     textColor: "var(--clay-ink)",
     links: [
       { label: "Email", ariaLabel: "Email us" },

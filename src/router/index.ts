@@ -17,12 +17,24 @@ const router = createRouter({
         },
       ],
     },
-     {
+    {
       path: '/user',
       name: 'User',
       component: () => import('@/views/user/index.vue'),
       meta: { title: '用户管理' },
-      },
+    },
+    {
+      path: '/ebook',
+      name: 'Ebook',
+      component: () => import('@/views/ebook/index.vue'),
+      meta: { title: '电子书' },
+    },
+    {
+      path: '/tv',
+      name: 'Tv',
+      component: () => import('@/views/tv/index.vue'),
+      meta: { title: '小电视' },
+    },
   ],
 })
 

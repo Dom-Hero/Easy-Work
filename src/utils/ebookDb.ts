@@ -1,0 +1,261 @@
+import type { EbookHeadingLevel } from '@/utils/ebookParser'
+
+export interface EbookChapterMeta {
+  id: string
+  title: string
+  level: EbookHeadingLevel
+}
+
+/** Book list / TOC only — no chapter bodies. */
+export interface EbookBook {
+  id: string
+  title: string
+  owner: string
+  location: string
+  createdAt: string
+  lastVisitedAt: string
+  chapters: EbookChapterMeta[]
+}
+
+interface EbookChapterContentRow {
+  id: string
+  bookId: string
+  content: string
+}
+
+/** Legacy v1 shape (content embedded in chapters). */
+interface LegacyEbookBook {
+  id: string
+  title: string
+  owner: string
+  location: string
+  createdAt: string
+  lastVisitedAt: string
+  chapters: Array<EbookChapterMeta & { content?: string }>
+}
+
+const DB_NAME = 'bighead-ebook'
+const DB_VERSION = 2
+const BOOK_STORE = 'books'
+const CONTENT_STORE = 'contents'
+const LEGACY_LS_KEY = 'bighead-ebook-library'
+
+function openDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION)
+
+    request.onupgradeneeded = (event) => {
+      const db = request.result
+      const tx = request.transaction
+      if (!tx) return
+
+      if (!db.objectStoreNames.contains(BOOK_STORE)) {
+        const store = db.createObjectStore(BOOK_STORE, { keyPath: 'id' })
+        store.createIndex('lastVisitedAt', 'lastVisitedAt', { unique: false })
+      }
+
+      if (!db.objectStoreNames.contains(CONTENT_STORE)) {
+        const store = db.createObjectStore(CONTENT_STORE, { keyPath: 'id' })
+        store.createIndex('bookId', 'bookId', { unique: false })
+      }
+
+      if (event.oldVersion < 2 && db.objectStoreNames.contains(BOOK_STORE)) {
+        const bookStore = tx.objectStore(BOOK_STORE)
+        const contentStore = tx.objectStore(CONTENT_STORE)
+
+        bookStore.openCursor().onsuccess = (e) => {
+          const cursor = (e.target as IDBRequest<IDBCursorWithValue | null>).result
+          if (!cursor) return
+
+          const book = cursor.value as LegacyEbookBook
+          const chapters = Array.isArray(book.chapters) ? book.chapters : []
+          const hasEmbedded = chapters.some((ch) => typeof ch.content === 'string')
+
+          if (hasEmbedded) {
+            for (const ch of chapters) {
+              contentStore.put({
+                id: ch.id,
+                bookId: book.id,
+                content: typeof ch.content === 'string' ? ch.content : '',
+              } satisfies EbookChapterContentRow)
+            }
+            cursor.update({
+              id: book.id,
+              title: book.title,
+              owner: book.owner,
+              location: book.location,
+              createdAt: book.createdAt,
+              lastVisitedAt: book.lastVisitedAt,
+              chapters: chapters.map(({ id, title, level }) => ({ id, title, level })),
+            } satisfies EbookBook)
+          }
+
+          cursor.continue()
+        }
+      }
+    }
+
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error ?? new Error('打开 IndexedDB 失败'))
+  })
+}
+
+function runTx(
+  storeNames: string | string[],
+  mode: IDBTransactionMode,
+  execute: (tx: IDBTransaction) => void,
+): Promise<void> {
+  return openDb().then(
+    (db) =>
+      new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(storeNames, mode)
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error ?? new Error('IndexedDB 事务失败'))
+        tx.onabort = () => reject(tx.error ?? new Error('IndexedDB 事务中止'))
+        try {
+          execute(tx)
+        } catch (error) {
+          reject(error)
+        }
+      }),
+  )
+}
+
+function req<T>(request: IDBRequest<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error ?? new Error('IndexedDB 请求失败'))
+  })
+}
+
+function normalizeBook(raw: LegacyEbookBook | EbookBook): EbookBook {
+  return {
+    id: raw.id,
+    title: raw.title,
+    owner: raw.owner,
+    location: raw.location,
+    createdAt: raw.createdAt,
+    lastVisitedAt: raw.lastVisitedAt,
+    chapters: (raw.chapters ?? []).map(({ id, title, level }) => ({ id, title, level })),
+  }
+}
+
+export async function getAllBooks(): Promise<EbookBook[]> {
+  const db = await openDb()
+  const tx = db.transaction(BOOK_STORE, 'readonly')
+  const rows = await req(tx.objectStore(BOOK_STORE).getAll())
+  return (Array.isArray(rows) ? rows : []).map(normalizeBook)
+}
+
+export async function putBookWithContents(
+  book: EbookBook,
+  contents: Array<{ id: string; content: string }>,
+): Promise<void> {
+  const meta = normalizeBook(book)
+  await runTx([BOOK_STORE, CONTENT_STORE], 'readwrite', (tx) => {
+    tx.objectStore(BOOK_STORE).put(meta)
+    const contentStore = tx.objectStore(CONTENT_STORE)
+    for (const row of contents) {
+      contentStore.put({
+        id: row.id,
+        bookId: meta.id,
+        content: row.content,
+      } satisfies EbookChapterContentRow)
+    }
+  })
+}
+
+export async function putBookMeta(book: EbookBook): Promise<void> {
+  const meta = normalizeBook(book)
+  await runTx(BOOK_STORE, 'readwrite', (tx) => {
+    tx.objectStore(BOOK_STORE).put(meta)
+  })
+}
+
+/** Write one or more chapter bodies (streaming import batches). */
+export async function putChapterContents(
+  bookId: string,
+  rows: Array<{ id: string; content: string }>,
+): Promise<void> {
+  if (rows.length === 0) return
+  await runTx(CONTENT_STORE, 'readwrite', (tx) => {
+    const store = tx.objectStore(CONTENT_STORE)
+    for (const row of rows) {
+      store.put({
+        id: row.id,
+        bookId,
+        content: row.content,
+      } satisfies EbookChapterContentRow)
+    }
+  })
+}
+
+export async function getChapterContent(chapterId: string): Promise<string> {
+  const db = await openDb()
+  const tx = db.transaction(CONTENT_STORE, 'readonly')
+  const row = await req<EbookChapterContentRow | undefined>(
+    tx.objectStore(CONTENT_STORE).get(chapterId),
+  )
+  return row?.content ?? ''
+}
+
+export async function deleteBook(id: string): Promise<void> {
+  await runTx([BOOK_STORE, CONTENT_STORE], 'readwrite', (tx) => {
+    const contentStore = tx.objectStore(CONTENT_STORE)
+    const index = contentStore.index('bookId')
+    const bookStore = tx.objectStore(BOOK_STORE)
+
+    index.openCursor(IDBKeyRange.only(id)).onsuccess = (e) => {
+      const cursor = (e.target as IDBRequest<IDBCursorWithValue | null>).result
+      if (!cursor) return
+      cursor.delete()
+      cursor.continue()
+    }
+    bookStore.delete(id)
+  })
+}
+
+function readLegacyLocalStorage(): LegacyEbookBook[] {
+  try {
+    const raw = localStorage.getItem(LEGACY_LS_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as LegacyEbookBook[]
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+/** Load book metas; migrate legacy localStorage once if IDB books are empty. */
+export async function loadBooksWithMigration(): Promise<EbookBook[]> {
+  const existing = await getAllBooks()
+  if (existing.length > 0) return existing
+
+  const legacy = readLegacyLocalStorage()
+  if (legacy.length === 0) return []
+
+  for (const book of legacy) {
+    const meta: EbookBook = {
+      id: book.id,
+      title: book.title,
+      owner: book.owner,
+      location: book.location,
+      createdAt: book.createdAt,
+      lastVisitedAt: book.lastVisitedAt,
+      chapters: (book.chapters ?? []).map(({ id, title, level }) => ({ id, title, level })),
+    }
+    const contents = (book.chapters ?? []).map((ch) => ({
+      id: ch.id,
+      content: typeof ch.content === 'string' ? ch.content : '',
+    }))
+    await putBookWithContents(meta, contents)
+  }
+
+  try {
+    localStorage.removeItem(LEGACY_LS_KEY)
+  } catch {
+    // ignore
+  }
+
+  return getAllBooks()
+}

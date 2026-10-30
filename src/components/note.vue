@@ -71,9 +71,9 @@
     --accent-lavender: #c0bbfe;
     --accent-yellow: #ffdf6c;
 
-    font-size: 9px;
+    font-size: 8px;
     position: relative;
-    width: 17em;
+    width: 14.5em;
     max-width: 100%;
     flex-shrink: 0;
     background:
@@ -88,7 +88,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 3em 1.5em 2em;
+    padding: 2.4em 1.2em 1.5em;
     transition:
         transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275),
         box-shadow 0.4s ease,
@@ -166,10 +166,10 @@
 
 /* --- AVATAR / PHOTO --- */
 .card-photo {
-    width: 6.5em;
-    height: 6.5em;
+    width: 5.6em;
+    height: 5.6em;
     position: relative;
-    margin-bottom: 1.2em;
+    margin-bottom: 1em;
     background:
         /* Spiky Hair */
         radial-gradient(circle at 25% 10%,

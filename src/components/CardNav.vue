@@ -3,13 +3,35 @@ import { gsap } from 'gsap';
 import { nextTick, onBeforeUpdate, onMounted, onUnmounted, ref, watch, type VNodeRef } from 'vue';
 import { useRouter } from 'vue-router';
 import { useCardFilter } from '@/composables/useCardFilter';
+import Ebook from './ebook.vue';
 import Note from './note.vue';
 import StartBtn from './startBtn.vue';
+import Tv from './tv.vue';
 
 const router = useRouter();
 
 const navigateToUser = () => {
   router.push('/user');
+};
+
+const navigateToEbook = () => {
+  router.push('/ebook');
+};
+
+const navigateToTv = () => {
+  router.push('/tv');
+};
+
+const handleCardNav = (idx: number) => {
+  if (idx === 1) {
+    navigateToEbook();
+    return;
+  }
+  if (idx === 2) {
+    navigateToTv();
+    return;
+  }
+  navigateToUser();
 };
 
 type CardNavLink = {
@@ -188,8 +210,8 @@ watch(
     <nav
       ref="navRef"
       :class="[
-        'card-nav block h-[60px] p-0 rounded-xl relative overflow-hidden will-change-[height]',
-        { open: isExpanded }
+        'card-nav block h-[60px] p-0 rounded-xl relative will-change-[height]',
+        isExpanded ? 'open overflow-visible' : 'overflow-hidden',
       ]"
       :style="{ '--nav-glass-tint': props.baseColor }"
     >
@@ -260,11 +282,19 @@ watch(
           v-for="(item, idx) in (props.items || []).slice(0, 3)"
           :key="`${item.label}-${idx}`"
           :ref="setCardRef(idx)"
-          class="relative flex flex-col flex-[1_1_auto] md:flex-[1_1_0%] gap-2 p-[12px_16px] rounded-[16px] min-w-0 h-auto md:h-full min-h-[60px] md:min-h-0 select-none nav-card"
+          class="relative flex flex-col flex-[1_1_auto] md:flex-[1_1_0%] gap-2 p-[12px_16px] rounded-[16px] min-w-0 h-auto md:h-full min-h-[60px] md:min-h-0 select-none nav-card overflow-visible"
           :style="{ backgroundColor: item.bgColor, color: item.textColor }"
         >
-          <div class="h-full w-full" role="link" tabindex="0" @click="navigateToUser" @keydown.enter="navigateToUser">
-            <Note />
+          <div
+            class="h-full w-full overflow-visible"
+            role="link"
+            tabindex="0"
+            @click="handleCardNav(idx)"
+            @keydown.enter="handleCardNav(idx)"
+          >
+            <Note v-if="idx === 0" />
+            <Ebook v-else-if="idx === 1" />
+            <Tv v-else />
           </div>
         </div>
       </div>
