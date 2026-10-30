@@ -1,4 +1,4 @@
-import { computed, markRaw, shallowRef } from 'vue'
+import { computed, markRaw, ref, shallowRef } from 'vue'
 import {
   parseEbookFile,
   splitTextIntoSlices,
@@ -6,17 +6,22 @@ import {
   type EbookSlice,
 } from '@/utils/ebookParser'
 import {
+  chapterContentIds,
   chapterSliceId,
   deleteBook,
   deleteContent,
+  deleteContents,
+  getBookSource,
   getChapterContent,
   getChapterSlice,
   loadBooksWithMigration,
   putBookMeta,
+  putBookSource,
   putChapterContents,
   type EbookBook,
   type EbookChapterMeta,
 } from '@/utils/ebookDb'
+import { encodingLabel, type EbookTextEncoding } from '@/utils/ebookEncoding'
 
 export type { EbookBook }
 
@@ -33,6 +38,8 @@ const contentCache = new Map<string, string>()
 /** Legacy chapters split in memory so the reader never mounts the whole blob. */
 const legacySlices = new Map<string, string[]>()
 const cancelledIds = new Set<string>()
+const redecodingBookId = ref<string | null>(null)
+const redecodeProgress = ref(0)
 
 /** Flush chapter bodies to IDB in small batches during stream parse. */
 const CONTENT_FLUSH_BATCH = 24
@@ -134,10 +141,12 @@ function scheduleLegacyPersist(bookId: string, chapterId: string, slices: string
   })()
 }
 
-function encodingLabel(encoding: string) {
-  if (encoding === 'gb18030') return 'GBK/GB18030'
-  if (encoding === 'utf-8') return 'UTF-8'
-  return encoding.toUpperCase()
+function redecodeFailMessage(error: unknown): string {
+  if (error instanceof Error && error.message === 'EMPTY') return '按该编码未能解析出正文'
+  if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+    return '本地存储空间不足，原文未替换'
+  }
+  return '重新解码失败'
 }
 
 export function useEbookLibrary() {
@@ -183,9 +192,7 @@ export function useEbookLibrary() {
 
     const full = await getChapterContent(chapter.id)
     const slices =
-      full.length > 200_000
-        ? await splitTextIntoSlicesAsync(full)
-        : splitTextIntoSlices(full)
+      full.length > 200_000 ? await splitTextIntoSlicesAsync(full) : splitTextIntoSlices(full)
     const stored = slices.length > 0 ? slices : ['']
     legacySlices.set(chapter.id, stored)
 
@@ -213,7 +220,7 @@ export function useEbookLibrary() {
   async function importTxtFile(
     file: File,
   ): Promise<
-    | { ok: true; book: EbookBook; encoding: string }
+    | { ok: true; book: EbookBook; encoding: string; sourceSaved: boolean }
     | { ok: false; message: string; cancelled?: boolean }
   > {
     await boot()
@@ -294,6 +301,14 @@ export function useEbookLibrary() {
       await flushPending()
       ensureActive()
 
+      let sourceSaved = false
+      try {
+        await putBookSource(bookId, file, file.name || 'book.txt')
+        sourceSaved = true
+      } catch {
+        sourceSaved = false
+      }
+
       const book = markRaw({
         id: bookId,
         title: placeholder.title,
@@ -302,6 +317,8 @@ export function useEbookLibrary() {
         createdAt: now,
         lastVisitedAt: now,
         chapters: result.chapters.map((ch) => ({ ...ch })),
+        encoding: result.encoding,
+        ...(sourceSaved ? { hasSource: true as const } : {}),
       } satisfies EbookBook)
 
       const readyBook = markRaw({ ...book, status: 'ready' as const, parseProgress: 100 })
@@ -313,7 +330,12 @@ export function useEbookLibrary() {
         const slice = firstSlice.current
         contentCache.set(chapterSliceId(slice.chapterId, slice.index), slice.content)
       }
-      return { ok: true, book: readyBook, encoding: encodingLabel(result.encoding) }
+      return {
+        ok: true,
+        book: readyBook,
+        encoding: encodingLabel(result.encoding),
+        sourceSaved,
+      }
     } catch (error) {
       books.value = books.value.filter((b) => b.id !== bookId)
       try {
@@ -327,6 +349,131 @@ export function useEbookLibrary() {
       return { ok: false, message: storageFailMessage(error) }
     } finally {
       cancelledIds.delete(bookId)
+    }
+  }
+
+  async function redecodeBook(
+    bookId: string,
+    encoding: EbookTextEncoding,
+  ): Promise<{ ok: true; book: EbookBook } | { ok: false; message: string }> {
+    await boot()
+    if (redecodingBookId.value) {
+      return { ok: false, message: '正在重新解析，请稍候' }
+    }
+
+    const current = books.value.find((b) => b.id === bookId)
+    if (!current || current.status === 'parsing') {
+      return { ok: false, message: '重新解码失败' }
+    }
+    if (current.encoding === encoding) {
+      return { ok: true, book: current }
+    }
+    if (current.hasSource !== true) {
+      return { ok: false, message: '这本书没有保留原文，请重新导入后再切换编码' }
+    }
+
+    redecodingBookId.value = bookId
+    redecodeProgress.value = 0
+
+    const pending: Array<{ id: string; content: string }> = []
+    const writtenIds: string[] = []
+    let sawText = false
+
+    const flushPending = async () => {
+      if (pending.length === 0) return
+      const batch = pending.splice(0, pending.length)
+      await putChapterContents(bookId, batch)
+      writtenIds.push(...batch.map((row) => row.id))
+    }
+
+    try {
+      const source = await getBookSource(bookId)
+      if (!source?.blob) {
+        const cleared = markRaw({ ...current, hasSource: false })
+        books.value = books.value.map((b) => (b.id === bookId ? cleared : b))
+        try {
+          await enqueueBookMeta(bookId)
+        } catch {
+          // the in-memory flag is already cleared
+        }
+        return { ok: false, message: '这本书没有保留原文，请重新导入后再切换编码' }
+      }
+
+      const file = new File([source.blob], source.fileName || 'book.txt', { type: 'text/plain' })
+      const result = await parseEbookFile(file, {
+        encoding,
+        onSlice: async (slice) => {
+          if (cancelledIds.has(bookId) || !books.value.some((b) => b.id === bookId)) {
+            throw new Error('REMOVED')
+          }
+          if (slice.content.trim()) sawText = true
+          pending.push({
+            id: chapterSliceId(slice.chapterId, slice.index),
+            content: slice.content,
+          })
+          if (pending.length >= CONTENT_FLUSH_BATCH) await flushPending()
+        },
+        onProgress: (ratio) => {
+          redecodeProgress.value = Math.max(0, Math.min(99, Math.round(ratio * 100)))
+        },
+      })
+
+      if (cancelledIds.has(bookId) || !books.value.some((b) => b.id === bookId)) {
+        throw new Error('REMOVED')
+      }
+
+      const hasHeading = result.chapters.some((ch) => ch.title !== '全文' && ch.title !== '序言')
+      if ((!sawText && !hasHeading) || result.chapters.length === 0) {
+        throw new Error('EMPTY')
+      }
+
+      await flushPending()
+
+      const latest = books.value.find((b) => b.id === bookId)
+      if (!latest || cancelledIds.has(bookId)) throw new Error('REMOVED')
+
+      const oldChapters = latest.chapters
+      const nextBook = markRaw({
+        id: latest.id,
+        title: latest.title,
+        owner: latest.owner,
+        location: latest.location,
+        createdAt: latest.createdAt,
+        lastVisitedAt: latest.lastVisitedAt,
+        chapters: result.chapters.map((ch) => ({ ...ch })),
+        encoding,
+        hasSource: true,
+      } satisfies EbookBook)
+
+      const previousBooks = books.value
+      books.value = books.value.map((b) => (b.id === bookId ? nextBook : b))
+      try {
+        await enqueueBookMeta(bookId)
+      } catch (error) {
+        books.value = previousBooks
+        throw error
+      }
+
+      clearContentCacheForBook(latest)
+      try {
+        await deleteContents(oldChapters.flatMap((chapter) => chapterContentIds(chapter)))
+      } catch {
+        // new chapters are already saved; leftover old slices are unused
+      }
+      redecodeProgress.value = 100
+      return { ok: true, book: nextBook }
+    } catch (error) {
+      try {
+        await deleteContents(writtenIds)
+      } catch {
+        // keep the failure result either way
+      }
+      return { ok: false, message: redecodeFailMessage(error) }
+    } finally {
+      if (redecodingBookId.value === bookId) {
+        redecodingBookId.value = null
+        redecodeProgress.value = 0
+      }
     }
   }
 
@@ -354,6 +501,9 @@ export function useEbookLibrary() {
     loadChapterPiece,
     touchVisited,
     importTxtFile,
+    redecodeBook,
+    redecodingBookId,
+    redecodeProgress,
     removeBook,
   }
 }

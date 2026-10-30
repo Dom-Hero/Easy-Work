@@ -1,19 +1,46 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, watch } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { DIFY_CHAT_IFRAME_SRC } from '@/constants/difyChat'
 import { useAiChatDrawer } from '@/composables/useAiChatDrawer'
 
 const { isOpen, hasLoadedIframe, hide } = useAiChatDrawer()
 
+const frameReady = ref(false)
+let openedAt = 0
+let acceptedLoad = false
+let revealTimer = 0
+
 function onKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape' && isOpen.value) hide()
 }
 
-onMounted(() => window.addEventListener('keydown', onKeydown))
-onUnmounted(() => window.removeEventListener('keydown', onKeydown))
+function onFrameLoad(event: Event) {
+  const frame = event.target as HTMLIFrameElement
+  if (acceptedLoad || !frame.src) return
+  acceptedLoad = true
+  const elapsed = performance.now() - openedAt
+  const wait = Math.max(360, 720 - elapsed)
+  window.clearTimeout(revealTimer)
+  revealTimer = window.setTimeout(() => {
+    frameReady.value = true
+  }, wait)
+}
 
-watch(isOpen, (v) => {
-  document.body.style.overflow = v ? 'hidden' : ''
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown)
+  window.clearTimeout(revealTimer)
+  document.body.style.overflow = ''
+})
+
+watch(isOpen, (open) => {
+  document.body.style.overflow = open ? 'hidden' : ''
+  window.clearTimeout(revealTimer)
+  if (open) {
+    openedAt = performance.now()
+    acceptedLoad = false
+    frameReady.value = false
+  }
 })
 </script>
 
@@ -48,11 +75,32 @@ watch(isOpen, (v) => {
             <iframe
               v-if="hasLoadedIframe"
               class="ai-drawer-frame"
+              :class="{ 'is-ready': frameReady }"
               :src="DIFY_CHAT_IFRAME_SRC"
               title="AI 对话"
               allow="fullscreen; microphone"
+              @load="onFrameLoad"
             />
-            <div v-else class="ai-drawer-loading">加载中…</div>
+            <Transition name="clay-loader-fade">
+              <div
+                v-if="!frameReady"
+                class="ai-drawer-loading"
+                role="status"
+                aria-live="polite"
+              >
+                <div class="clay-loader" aria-hidden="true">
+                  <span class="clay-orb orb-peach" />
+                  <span class="clay-orb orb-lilac" />
+                  <span class="clay-orb orb-mint" />
+                </div>
+                <p class="ai-drawer-loading-text">
+                  正在唤醒助手
+                  <span class="loading-dots" aria-hidden="true">
+                    <i /><i /><i />
+                  </span>
+                </p>
+              </div>
+            </Transition>
           </div>
 
           <div class="ai-drawer-decor" aria-hidden="true">
@@ -188,15 +236,134 @@ watch(isOpen, (v) => {
   border-radius: var(--clay-rounded-lg, 16px);
   background: var(--clay-surface-soft, #faf5e8);
   overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.45s ease;
+}
+
+.ai-drawer-frame.is-ready {
+  opacity: 1;
 }
 
 .ai-drawer-loading {
+  position: absolute;
+  inset: 12px;
+  z-index: 3;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100%;
+  gap: 22px;
+  border: 1px solid var(--clay-hairline, #e5e5e5);
+  border-radius: var(--clay-rounded-lg, 16px);
+  background:
+    radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--clay-card-peach, #ffd2b3) 42%, transparent), transparent 58%),
+    var(--clay-canvas, #fffaf0);
+}
+
+.clay-loader {
+  position: relative;
+  width: 120px;
+  height: 96px;
+}
+
+.clay-orb {
+  position: absolute;
+  border-radius: 40% 60% 55% 45% / 50% 45% 55% 50%;
+  box-shadow:
+    inset -8px -10px 16px rgba(10, 10, 10, 0.06),
+    0 10px 18px rgba(10, 10, 10, 0.06);
+  animation: clay-breathe 2.6s ease-in-out infinite;
+}
+
+.orb-peach {
+  width: 68px;
+  height: 68px;
+  left: 10px;
+  top: 16px;
+  background: var(--clay-card-peach, #ffd2b3);
+}
+
+.orb-lilac {
+  width: 50px;
+  height: 50px;
+  right: 4px;
+  top: 4px;
+  background: var(--clay-card-lilac, #d2c6ef);
+  animation-delay: 0.28s;
+}
+
+.orb-mint {
+  width: 38px;
+  height: 38px;
+  right: 22px;
+  bottom: 2px;
+  background: var(--clay-card-mint, #c5dfd4);
+  animation-delay: 0.56s;
+}
+
+.ai-drawer-loading-text {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
   color: var(--clay-muted, #6a6a6a);
   font-size: 14px;
+  letter-spacing: 0.02em;
+}
+
+.loading-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+}
+
+.loading-dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--clay-brand-peach, #ffb084);
+  animation: clay-dot 1.2s ease-in-out infinite;
+}
+
+.loading-dots i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.loading-dots i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes clay-breathe {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    border-radius: 40% 60% 55% 45% / 50% 45% 55% 50%;
+  }
+  50% {
+    transform: translateY(-8px) scale(1.06);
+    border-radius: 55% 45% 42% 58% / 46% 56% 44% 54%;
+  }
+}
+
+@keyframes clay-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.28;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+.clay-loader-fade-leave-active {
+  transition: opacity 0.45s ease;
+}
+
+.clay-loader-fade-leave-to {
+  opacity: 0;
 }
 
 .ai-drawer-decor {
@@ -261,6 +428,18 @@ watch(isOpen, (v) => {
 @media (max-width: 640px) {
   .ai-drawer-panel {
     width: 100vw;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clay-orb,
+  .loading-dots i {
+    animation: none;
+  }
+
+  .ai-drawer-frame,
+  .clay-loader-fade-leave-active {
+    transition: none;
   }
 }
 </style>

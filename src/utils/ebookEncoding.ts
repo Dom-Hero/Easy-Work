@@ -1,5 +1,23 @@
 export type EbookTextEncoding = 'utf-8' | 'gb18030' | 'utf-16le' | 'utf-16be'
 
+export const EBOOK_ENCODING_OPTIONS: ReadonlyArray<{ value: EbookTextEncoding; label: string }> = [
+  { value: 'utf-8', label: 'UTF-8' },
+  { value: 'gb18030', label: 'GBK/GB18030' },
+  { value: 'utf-16le', label: 'UTF-16 LE' },
+  { value: 'utf-16be', label: 'UTF-16 BE' },
+]
+
+export function isEbookTextEncoding(value: unknown): value is EbookTextEncoding {
+  return EBOOK_ENCODING_OPTIONS.some((option) => option.value === value)
+}
+
+export function encodingLabel(encoding: string): string {
+  return (
+    EBOOK_ENCODING_OPTIONS.find((option) => option.value === encoding)?.label ??
+    encoding.toUpperCase()
+  )
+}
+
 const SAMPLE_SIZE = 64 * 1024
 
 function countChar(text: string, re: RegExp): number {
@@ -59,8 +77,7 @@ export function detectTextEncoding(bytes: Uint8Array): EbookTextEncoding {
 }
 
 export function createTextDecoder(encoding: EbookTextEncoding): TextDecoder {
-  const labels: string[] =
-    encoding === 'gb18030' ? ['gb18030', 'gbk', 'gb2312'] : [encoding]
+  const labels: string[] = encoding === 'gb18030' ? ['gb18030', 'gbk', 'gb2312'] : [encoding]
 
   for (const label of labels) {
     try {

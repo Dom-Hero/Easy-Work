@@ -94,6 +94,47 @@ watch(activeBookId, () => {
   tocScroll.value = 0
   if (tocEl.value) tocEl.value.scrollTop = 0
 })
+
+watch(
+  () => {
+    if (view.value !== 'reader' || !activeBookId.value) return ''
+    const book = getBook(activeBookId.value)
+    if (!book) return ''
+    const ids = book.chapters.map((chapter) => chapter.id).join('\0')
+    return `${book.encoding ?? ''}|${book.hasSource === true ? '1' : '0'}|${ids}`
+  },
+  () => {
+    if (view.value !== 'reader' || !activeBookId.value) return
+    const live = getBook(activeBookId.value)
+    const snapshot = readerBook.value
+    if (!live || !snapshot || live.id !== snapshot.id) return
+
+    const sameChapters =
+      snapshot.chapters.length === live.chapters.length &&
+      snapshot.chapters.every((chapter, index) => chapter.id === live.chapters[index]?.id)
+    if (
+      sameChapters &&
+      snapshot.encoding === live.encoding &&
+      snapshot.hasSource === live.hasSource
+    ) {
+      return
+    }
+
+    if (sameChapters) {
+      readerBook.value = { ...live, chapters: live.chapters }
+      return
+    }
+
+    const prevTitle = snapshot.chapters.find(
+      (chapter) => chapter.id === activeChapterId.value,
+    )?.title
+    const match =
+      (prevTitle ? live.chapters.find((chapter) => chapter.title === prevTitle) : undefined) ??
+      live.chapters[0]
+    readerBook.value = { ...live, chapters: live.chapters }
+    activeChapterId.value = match?.id ?? ''
+  },
+)
 </script>
 
 <template>
@@ -232,7 +273,12 @@ watch(activeBookId, () => {
           <button type="button" class="ebook-topbar__btn" disabled title="搜索">
             <svg viewBox="0 0 24 24" fill="none">
               <circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.6" />
-              <path d="M16 16l4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+              <path
+                d="M16 16l4 4"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+              />
             </svg>
           </button>
           <button type="button" class="ebook-topbar__btn" disabled title="帮助">?</button>
@@ -244,7 +290,12 @@ watch(activeBookId, () => {
                 stroke-width="1.6"
                 stroke-linejoin="round"
               />
-              <path d="M10 19a2 2 0 0 0 4 0" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+              <path
+                d="M10 19a2 2 0 0 0 4 0"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+              />
             </svg>
           </button>
           <button type="button" class="ebook-topbar__btn" disabled title="应用">

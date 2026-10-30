@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { message } from 'ant-design-vue'
 import type { EbookBook } from '@/composables/useEbookLibrary'
 import { useEbookLibrary } from '@/composables/useEbookLibrary'
 import ImmersiveReader from '@/components/ebook/ImmersiveReader.vue'
+import { EBOOK_ENCODING_OPTIONS, isEbookTextEncoding } from '@/utils/ebookEncoding'
 
 const props = defineProps<{
   book: EbookBook
@@ -14,7 +16,7 @@ const emit = defineEmits<{
   'update:chapterId': [id: string]
 }>()
 
-const { loadChapterPiece } = useEbookLibrary()
+const { loadChapterPiece, redecodeBook, redecodingBookId, redecodeProgress } = useEbookLibrary()
 
 type ReaderMode = 'document' | 'immersive'
 const MODE_KEY = 'ebook-reader-mode'
@@ -59,6 +61,23 @@ function setMode(next: ReaderMode) {
 }
 
 const chapters = computed(() => props.book.chapters ?? [])
+const redecoding = computed(() => redecodingBookId.value === props.book.id)
+const encodingValue = computed(() => (props.book.hasSource ? (props.book.encoding ?? '') : ''))
+const encodingTitle = computed(() =>
+  props.book.hasSource ? '选择编码并重新解码' : '这本书没有保留原文，请重新导入后再切换编码',
+)
+
+async function onEncodingChange(event: Event) {
+  const value = (event.target as HTMLSelectElement).value
+  if (!isEbookTextEncoding(value) || value === props.book.encoding) return
+  immersiveStartAt.value = 'start'
+  try {
+    const result = await redecodeBook(props.book.id, value)
+    if (!result.ok) message.warning(result.message)
+  } catch {
+    message.warning('重新解码失败')
+  }
+}
 
 const activeIndex = computed(() => {
   const idx = chapters.value.findIndex((c) => c.id === props.chapterId)
@@ -68,12 +87,12 @@ const activeIndex = computed(() => {
 const activeChapter = computed(() => chapters.value[activeIndex.value] ?? null)
 
 const prevChapter = computed(() =>
-  activeIndex.value > 0 ? chapters.value[activeIndex.value - 1] ?? null : null,
+  activeIndex.value > 0 ? (chapters.value[activeIndex.value - 1] ?? null) : null,
 )
 
 const nextChapter = computed(() =>
   activeIndex.value < chapters.value.length - 1
-    ? chapters.value[activeIndex.value + 1] ?? null
+    ? (chapters.value[activeIndex.value + 1] ?? null)
     : null,
 )
 
@@ -213,7 +232,8 @@ async function revealMore() {
 
 function maybeFill() {
   const el = contentEl.value
-  if (!el || mode.value !== 'document' || loading.value || loadingMore.value || !hasMore.value) return
+  if (!el || mode.value !== 'document' || loading.value || loadingMore.value || !hasMore.value)
+    return
   if (el.clientHeight === 0 || docText.value.length >= DOC_WINDOW_CHARS) return
   if (el.scrollHeight <= el.clientHeight + 80) void revealMore()
 }
@@ -287,23 +307,44 @@ onBeforeUnmount(() => {
           <span class="reader__crumb-current">{{ activeChapter.title }}</span>
         </template>
       </nav>
-      <div class="reader__mode" role="group" aria-label="阅读模式">
-        <button
-          type="button"
-          class="reader__mode-btn"
-          :class="{ 'is-active': mode === 'document' }"
-          @click="setMode('document')"
-        >
-          文档
-        </button>
-        <button
-          type="button"
-          class="reader__mode-btn"
-          :class="{ 'is-active': mode === 'immersive' }"
-          @click="setMode('immersive')"
-        >
-          沉浸
-        </button>
+      <div class="reader__tools">
+        <label class="reader__encoding">
+          <span>编码</span>
+          <select
+            :value="encodingValue"
+            :disabled="!book.hasSource || redecoding"
+            :title="encodingTitle"
+            @change="onEncodingChange"
+          >
+            <option v-if="!book.hasSource" value="">需重新导入</option>
+            <option v-else-if="!book.encoding" value="">选择编码</option>
+            <option
+              v-for="option in EBOOK_ENCODING_OPTIONS"
+              :key="option.value"
+              :value="option.value"
+            >
+              {{ option.label }}
+            </option>
+          </select>
+        </label>
+        <div class="reader__mode" role="group" aria-label="阅读模式">
+          <button
+            type="button"
+            class="reader__mode-btn"
+            :class="{ 'is-active': mode === 'document' }"
+            @click="setMode('document')"
+          >
+            文档
+          </button>
+          <button
+            type="button"
+            class="reader__mode-btn"
+            :class="{ 'is-active': mode === 'immersive' }"
+            @click="setMode('immersive')"
+          >
+            沉浸
+          </button>
+        </div>
       </div>
       <label v-if="chapters.length <= 200" class="reader__mobile-toc">
         <span class="sr-only">选择章节</span>
@@ -318,8 +359,16 @@ onBeforeUnmount(() => {
       </p>
     </header>
 
+    <div v-if="redecoding" class="reader__redecode" role="status">
+      <p class="reader__status">
+        <i class="reader__spinner" aria-hidden="true" />
+        正在按所选编码重新解析…
+        <template v-if="redecodeProgress > 0">{{ redecodeProgress }}%</template>
+      </p>
+    </div>
+
     <ImmersiveReader
-      v-if="mode === 'immersive'"
+      v-else-if="mode === 'immersive'"
       :text="pieceText"
       :title="activeChapter?.title || book.title"
       :has-prev-chapter="immersiveHasPrev"
@@ -351,7 +400,12 @@ onBeforeUnmount(() => {
         <pre class="reader__text">{{ displayText || '（本章暂无正文）' }}</pre>
         <div v-if="hasMore" class="reader__more">
           <p class="reader__progress">{{ progressLabel }}</p>
-          <button type="button" class="reader__more-btn" :disabled="loadingMore" @click="revealMore">
+          <button
+            type="button"
+            class="reader__more-btn"
+            :disabled="loadingMore"
+            @click="revealMore"
+          >
             {{ loadingMore ? '加载中…' : '继续加载' }}
           </button>
         </div>
@@ -447,8 +501,39 @@ onBeforeUnmount(() => {
   font-weight: 600;
 }
 
-.reader__mode {
+.reader__tools {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.reader__encoding {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--clay-muted, #6a6a6a);
+}
+
+.reader__encoding select {
+  appearance: none;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--clay-hairline, #e5e5e5);
+  background: var(--clay-surface-card, #f5f0e0);
+  color: var(--clay-ink, #0a0a0a);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.reader__encoding select:disabled {
+  color: var(--clay-muted, #6a6a6a);
+  cursor: default;
+}
+
+.reader__mode {
   display: inline-flex;
   padding: 3px;
   border-radius: 10px;
@@ -502,6 +587,17 @@ onBeforeUnmount(() => {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+.reader__redecode {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--clay-hairline, #e5e5e5);
+  border-radius: var(--clay-rounded-lg, 16px);
+  background: color-mix(in srgb, var(--clay-canvas, #fffaf0) 92%, white);
 }
 
 .reader__content {
@@ -564,12 +660,7 @@ onBeforeUnmount(() => {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: break-word;
-  font-family:
-    'Songti SC',
-    'Noto Serif SC',
-    'Source Han Serif SC',
-    Georgia,
-    serif;
+  font-family: 'Songti SC', 'Noto Serif SC', 'Source Han Serif SC', Georgia, serif;
   font-size: 16px;
   line-height: 1.85;
   color: var(--clay-body-strong, #1a1a1a);
@@ -643,7 +734,11 @@ onBeforeUnmount(() => {
 .reader__pager-btn:not(:disabled):hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(10, 10, 10, 0.08);
-  border-color: color-mix(in srgb, var(--clay-brand-peach, #ffb084) 55%, var(--clay-hairline, #e5e5e5));
+  border-color: color-mix(
+    in srgb,
+    var(--clay-brand-peach, #ffb084) 55%,
+    var(--clay-hairline, #e5e5e5)
+  );
 }
 
 .reader__pager-btn:disabled {
@@ -684,7 +779,7 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 800px) {
-  .reader__mode {
+  .reader__tools {
     margin-left: 0;
   }
 
