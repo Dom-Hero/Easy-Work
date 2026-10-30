@@ -1,3 +1,4 @@
+import { isEbookTextEncoding, type EbookTextEncoding } from '@/utils/ebookEncoding'
 import type { EbookHeadingLevel } from '@/utils/ebookParser'
 
 export interface EbookChapterMeta {
@@ -23,6 +24,16 @@ export interface EbookBook {
    */
   status?: 'parsing' | 'ready'
   parseProgress?: number
+  /** Encoding used for the stored chapter text. */
+  encoding?: EbookTextEncoding
+  /** True when the original txt bytes are kept in the sources store. */
+  hasSource?: boolean
+}
+
+export interface EbookSourceRecord {
+  bookId: string
+  blob: Blob
+  fileName: string
 }
 
 interface EbookChapterContentRow {
@@ -43,9 +54,10 @@ interface LegacyEbookBook {
 }
 
 const DB_NAME = 'bighead-ebook'
-const DB_VERSION = 2
+const DB_VERSION = 3
 const BOOK_STORE = 'books'
 const CONTENT_STORE = 'contents'
+const SOURCE_STORE = 'sources'
 const LEGACY_LS_KEY = 'bighead-ebook-library'
 
 function openDb(): Promise<IDBDatabase> {
@@ -65,6 +77,10 @@ function openDb(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(CONTENT_STORE)) {
         const store = db.createObjectStore(CONTENT_STORE, { keyPath: 'id' })
         store.createIndex('bookId', 'bookId', { unique: false })
+      }
+
+      if (!db.objectStoreNames.contains(SOURCE_STORE)) {
+        db.createObjectStore(SOURCE_STORE, { keyPath: 'bookId' })
       }
 
       if (event.oldVersion < 2 && db.objectStoreNames.contains(BOOK_STORE)) {
@@ -155,11 +171,21 @@ function normalizeBook(raw: LegacyEbookBook | EbookBook): EbookBook {
     chapters: (raw.chapters ?? []).map((ch) => toChapterMeta(ch)),
   }
   if ('status' in raw && raw.status === 'parsing') book.status = 'parsing'
+  if ('encoding' in raw && isEbookTextEncoding(raw.encoding)) book.encoding = raw.encoding
+  if ('hasSource' in raw && raw.hasSource === true) book.hasSource = true
   return book
 }
 
 export function chapterSliceId(chapterId: string, index: number) {
   return `${chapterId}#${index}`
+}
+
+/** Legacy blob id plus every slice id. Missing keys are safe to delete. */
+export function chapterContentIds(chapter: EbookChapterMeta): string[] {
+  const ids = [chapter.id]
+  const count = chapter.sliceCount ?? 0
+  for (let index = 0; index < count; index += 1) ids.push(chapterSliceId(chapter.id, index))
+  return ids
 }
 
 export async function getAllBooks(): Promise<EbookBook[]> {
@@ -236,8 +262,36 @@ export async function deleteContent(id: string): Promise<void> {
   })
 }
 
+export async function deleteContents(ids: string[]): Promise<void> {
+  const size = 200
+  for (let i = 0; i < ids.length; i += size) {
+    const batch = ids.slice(i, i + size)
+    await runTx(CONTENT_STORE, 'readwrite', (tx) => {
+      const store = tx.objectStore(CONTENT_STORE)
+      for (const id of batch) store.delete(id)
+    })
+  }
+}
+
+export async function putBookSource(bookId: string, blob: Blob, fileName: string): Promise<void> {
+  await runTx(SOURCE_STORE, 'readwrite', (tx) => {
+    tx.objectStore(SOURCE_STORE).put({
+      bookId,
+      blob,
+      fileName,
+    } satisfies EbookSourceRecord)
+  })
+}
+
+export async function getBookSource(bookId: string): Promise<EbookSourceRecord | null> {
+  const db = await openDb()
+  const tx = db.transaction(SOURCE_STORE, 'readonly')
+  const row = await req<EbookSourceRecord | undefined>(tx.objectStore(SOURCE_STORE).get(bookId))
+  return row ?? null
+}
+
 export async function deleteBook(id: string): Promise<void> {
-  await runTx([BOOK_STORE, CONTENT_STORE], 'readwrite', (tx) => {
+  await runTx([BOOK_STORE, CONTENT_STORE, SOURCE_STORE], 'readwrite', (tx) => {
     const contentStore = tx.objectStore(CONTENT_STORE)
     const index = contentStore.index('bookId')
     const bookStore = tx.objectStore(BOOK_STORE)
@@ -249,6 +303,7 @@ export async function deleteBook(id: string): Promise<void> {
       cursor.continue()
     }
     bookStore.delete(id)
+    tx.objectStore(SOURCE_STORE).delete(id)
   })
 }
 

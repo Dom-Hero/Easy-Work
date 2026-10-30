@@ -36,9 +36,9 @@ const MD_HEADING = /^(#{1,3})\s+(.+?)\s*$/
 const CN_NUM = '[零〇一二三四五六七八九十百千万两\\d０-９]+'
 const CN_CHAPTER = new RegExp(`^第\\s*${CN_NUM}\\s*章(?:\\s*[:：、.\\-—-]?\\s*(.*))?$`)
 const CN_SECTION = new RegExp(`^第\\s*${CN_NUM}\\s*节(?:\\s*[:：、.\\-—-]?\\s*(.*))?$`)
-const CN_SPECIAL =
-  /^(楔子|序章|序言|引子|前言|引言|prologue|终章|尾声|后记|番外(?:\s*.*)?)$/i
-const CN_BRACKET_CHAPTER = /^[【\[]\s*(第\s*[零〇一二三四五六七八九十百千万两\d０-９]+\s*章.*?)[】\]]$/
+const CN_SPECIAL = /^(楔子|序章|序言|引子|前言|引言|prologue|终章|尾声|后记|番外(?:\s*.*)?)$/i
+const CN_BRACKET_CHAPTER =
+  /^[【\[]\s*(第\s*[零〇一二三四五六七八九十百千万两\d０-９]+\s*章.*?)[】\]]$/
 
 /** Yield to the browser every N lines so huge files don't freeze the UI. */
 const YIELD_EVERY_LINES = 400
@@ -356,6 +356,8 @@ export interface ParseEbookFileResult {
 }
 
 export interface ParseEbookFileOptions {
+  /** When set, skip detection and decode the file with this encoding. */
+  encoding?: EbookTextEncoding
   onSlice?: (slice: EbookSlice) => void | Promise<void>
   onProgress?: (ratio: number) => void
 }
@@ -368,8 +370,7 @@ export async function parseEbookFile(
   file: File,
   options: ParseEbookFileOptions = {},
 ): Promise<ParseEbookFileResult> {
-  const head = await readFileHead(file)
-  const encoding = detectTextEncoding(head)
+  const encoding = options.encoding ?? detectTextEncoding(await readFileHead(file))
   const decoder = createTextDecoder(encoding)
   const parser = new EbookLineParser()
   const splitter = new LineBreakSplitter()

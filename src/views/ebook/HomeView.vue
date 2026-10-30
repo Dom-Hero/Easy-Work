@@ -37,7 +37,13 @@ async function onFileChange(event: Event) {
       if (!result.cancelled) message.warning(result.message)
       return
     }
-    message.success(`已导入「${result.book.title}」（${result.encoding}）`)
+    if (result.sourceSaved) {
+      message.success(`已导入「${result.book.title}」（${result.encoding}）`)
+    } else {
+      message.warning(
+        `已导入「${result.book.title}」（${result.encoding}），原文未能保存，无法在阅读页切换编码`,
+      )
+    }
   } finally {
     uploading.value = false
   }
@@ -102,8 +108,17 @@ function confirmRemove(book: EbookBook) {
       <button type="button" class="action-card action-card--muted" disabled>
         <span class="action-card__icon action-card__icon--new" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z" stroke="currentColor" stroke-width="1.6" />
-            <path d="M14 2v6h6M12 18v-6M9 15h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+            <path
+              d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z"
+              stroke="currentColor"
+              stroke-width="1.6"
+            />
+            <path
+              d="M14 2v6h6M12 18v-6M9 15h6"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+            />
           </svg>
         </span>
         <span class="action-card__body">
@@ -120,8 +135,19 @@ function confirmRemove(book: EbookBook) {
       >
         <span class="action-card__icon action-card__icon--upload" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none">
-            <path d="M12 16V7M12 7l-3.5 3.5M12 7l3.5 3.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="M5 16.5V18a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+            <path
+              d="M12 16V7M12 7l-3.5 3.5M12 7l3.5 3.5"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M5 16.5V18a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1.5"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+            />
           </svg>
         </span>
         <span class="action-card__body">
@@ -133,10 +159,42 @@ function confirmRemove(book: EbookBook) {
       <button type="button" class="action-card action-card--muted" disabled>
         <span class="action-card__icon action-card__icon--tpl" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none">
-            <rect x="3" y="3" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.6" />
-            <rect x="13" y="3" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.6" />
-            <rect x="3" y="13" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.6" />
-            <rect x="13" y="13" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.6" />
+            <rect
+              x="3"
+              y="3"
+              width="8"
+              height="8"
+              rx="1.5"
+              stroke="currentColor"
+              stroke-width="1.6"
+            />
+            <rect
+              x="13"
+              y="3"
+              width="8"
+              height="8"
+              rx="1.5"
+              stroke="currentColor"
+              stroke-width="1.6"
+            />
+            <rect
+              x="3"
+              y="13"
+              width="8"
+              height="8"
+              rx="1.5"
+              stroke="currentColor"
+              stroke-width="1.6"
+            />
+            <rect
+              x="13"
+              y="13"
+              width="8"
+              height="8"
+              rx="1.5"
+              stroke="currentColor"
+              stroke-width="1.6"
+            />
           </svg>
         </span>
         <span class="action-card__body">
@@ -168,7 +226,9 @@ function confirmRemove(book: EbookBook) {
         >
           {{ tab.label }}
         </button>
-        <button type="button" class="home__tab home__tab--plus" disabled aria-label="添加">+</button>
+        <button type="button" class="home__tab home__tab--plus" disabled aria-label="添加">
+          +
+        </button>
       </div>
       <div class="home__tools" aria-hidden="true">
         <button type="button" class="home__tool" disabled>筛选</button>
@@ -196,9 +256,7 @@ function confirmRemove(book: EbookBook) {
             <td colspan="6" class="home__empty">{{ loadError }}</td>
           </tr>
           <tr v-else-if="books.length === 0">
-            <td colspan="6" class="home__empty">
-              暂无电子书，点击上方「上传」导入 .txt 文件
-            </td>
+            <td colspan="6" class="home__empty">暂无电子书，点击上方「上传」导入 .txt 文件</td>
           </tr>
           <tr
             v-for="book in books"
@@ -214,8 +272,17 @@ function confirmRemove(book: EbookBook) {
               <div class="book-cell">
                 <span class="book-icon" aria-hidden="true">
                   <svg v-if="book.status !== 'parsing'" viewBox="0 0 24 24" fill="none">
-                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
-                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" stroke="currentColor" stroke-width="1.6" />
+                    <path
+                      d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                      stroke-linecap="round"
+                    />
+                    <path
+                      d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                    />
                   </svg>
                   <i v-else class="book-spinner" />
                 </span>
@@ -230,7 +297,11 @@ function confirmRemove(book: EbookBook) {
             <td class="col-loc">
               <span class="loc-pill">
                 <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M3 7h7l2 2h9v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" stroke="currentColor" stroke-width="1.5" />
+                  <path
+                    d="M3 7h7l2 2h9v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                  />
                 </svg>
                 {{ book.location }}
               </span>
@@ -313,8 +384,16 @@ function confirmRemove(book: EbookBook) {
 
 .action-card--upload:not(:disabled) {
   opacity: 1;
-  background: color-mix(in srgb, var(--clay-brand-peach, #ffb084) 28%, var(--clay-surface-card, #f5f0e0));
-  border-color: color-mix(in srgb, var(--clay-brand-peach, #ffb084) 55%, var(--clay-hairline, #e5e5e5));
+  background: color-mix(
+    in srgb,
+    var(--clay-brand-peach, #ffb084) 28%,
+    var(--clay-surface-card, #f5f0e0)
+  );
+  border-color: color-mix(
+    in srgb,
+    var(--clay-brand-peach, #ffb084) 55%,
+    var(--clay-hairline, #e5e5e5)
+  );
 }
 
 .action-card__icon {
@@ -602,7 +681,11 @@ function confirmRemove(book: EbookBook) {
 
 .row-action--danger:not(:disabled):hover {
   color: var(--clay-brand-coral, #ff6b5a);
-  border-color: color-mix(in srgb, var(--clay-brand-coral, #ff6b5a) 45%, var(--clay-hairline, #e5e5e5));
+  border-color: color-mix(
+    in srgb,
+    var(--clay-brand-coral, #ff6b5a) 45%,
+    var(--clay-hairline, #e5e5e5)
+  );
   background: color-mix(in srgb, var(--clay-brand-coral, #ff6b5a) 12%, white);
 }
 
