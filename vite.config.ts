@@ -7,7 +7,7 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/demo/',   // 注意：这里是你的仓库名 demo
+  base: '/Easy-Work/',   // 注意：这里是你的仓库名 Easy-Work
   build: {
     // Vite 8 默认 lightningcss 会错误压缩 backdrop-filter，导致毛玻璃失效
     cssMinify: 'esbuild',
