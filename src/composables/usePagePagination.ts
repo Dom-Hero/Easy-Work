@@ -17,9 +17,15 @@ const DEFAULT_FONT =
 export function paginateText(text: string, options: PagePaginationOptions): string[] {
   const width = Math.floor(options.width)
   const height = Math.floor(options.height)
-  if (width <= 0 || height <= 0) return text ? [text] : ['']
+  if (width <= 0 || height <= 0) {
+    const clipped = (text ?? '').slice(0, 24_000)
+    return clipped ? [clipped] : ['']
+  }
 
-  const source = text ?? ''
+  // A fuse: measuring an entire novel here blocks the main thread.
+  const MAX_CHARS = 24_000
+  const raw = text ?? ''
+  const source = raw.length > MAX_CHARS ? raw.slice(0, MAX_CHARS) : raw
   if (!source.trim()) return ['']
 
   const measure = document.createElement('div')

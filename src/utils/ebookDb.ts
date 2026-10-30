@@ -4,6 +4,8 @@ export interface EbookChapterMeta {
   id: string
   title: string
   level: EbookHeadingLevel
+  /** Set when the chapter body is stored as slices. Absent on legacy single-blob chapters. */
+  sliceCount?: number
 }
 
 /** Book list / TOC only — no chapter bodies. */
@@ -15,6 +17,12 @@ export interface EbookBook {
   createdAt: string
   lastVisitedAt: string
   chapters: EbookChapterMeta[]
+  /**
+   * `parsing` is persisted only so a refresh mid-import can be discarded.
+   * `ready` books omit it. Progress stays in memory.
+   */
+  status?: 'parsing' | 'ready'
+  parseProgress?: number
 }
 
 interface EbookChapterContentRow {
@@ -128,16 +136,30 @@ function req<T>(request: IDBRequest<T>): Promise<T> {
   })
 }
 
+function toChapterMeta(ch: EbookChapterMeta & { content?: string }): EbookChapterMeta {
+  const meta: EbookChapterMeta = { id: ch.id, title: ch.title, level: ch.level }
+  if (typeof ch.sliceCount === 'number' && Number.isFinite(ch.sliceCount)) {
+    meta.sliceCount = ch.sliceCount
+  }
+  return meta
+}
+
 function normalizeBook(raw: LegacyEbookBook | EbookBook): EbookBook {
-  return {
+  const book: EbookBook = {
     id: raw.id,
     title: raw.title,
     owner: raw.owner,
     location: raw.location,
     createdAt: raw.createdAt,
     lastVisitedAt: raw.lastVisitedAt,
-    chapters: (raw.chapters ?? []).map(({ id, title, level }) => ({ id, title, level })),
+    chapters: (raw.chapters ?? []).map((ch) => toChapterMeta(ch)),
   }
+  if (raw.status === 'parsing') book.status = 'parsing'
+  return book
+}
+
+export function chapterSliceId(chapterId: string, index: number) {
+  return `${chapterId}#${index}`
 }
 
 export async function getAllBooks(): Promise<EbookBook[]> {
@@ -199,6 +221,21 @@ export async function getChapterContent(chapterId: string): Promise<string> {
   return row?.content ?? ''
 }
 
+export async function getChapterSlice(chapterId: string, index: number): Promise<string | null> {
+  const db = await openDb()
+  const tx = db.transaction(CONTENT_STORE, 'readonly')
+  const row = await req<EbookChapterContentRow | undefined>(
+    tx.objectStore(CONTENT_STORE).get(chapterSliceId(chapterId, index)),
+  )
+  return row?.content ?? null
+}
+
+export async function deleteContent(id: string): Promise<void> {
+  await runTx(CONTENT_STORE, 'readwrite', (tx) => {
+    tx.objectStore(CONTENT_STORE).delete(id)
+  })
+}
+
 export async function deleteBook(id: string): Promise<void> {
   await runTx([BOOK_STORE, CONTENT_STORE], 'readwrite', (tx) => {
     const contentStore = tx.objectStore(CONTENT_STORE)
@@ -229,7 +266,18 @@ function readLegacyLocalStorage(): LegacyEbookBook[] {
 /** Load book metas; migrate legacy localStorage once if IDB books are empty. */
 export async function loadBooksWithMigration(): Promise<EbookBook[]> {
   const existing = await getAllBooks()
-  if (existing.length > 0) return existing
+  const stuck = existing.filter((book) => book.status === 'parsing')
+  if (stuck.length > 0) {
+    for (const book of stuck) {
+      try {
+        await deleteBook(book.id)
+      } catch {
+        // keep going; a stuck import should not block the shelf
+      }
+    }
+  }
+  const ready = existing.filter((book) => book.status !== 'parsing')
+  if (ready.length > 0 || stuck.length > 0) return ready
 
   const legacy = readLegacyLocalStorage()
   if (legacy.length === 0) return []
@@ -242,7 +290,7 @@ export async function loadBooksWithMigration(): Promise<EbookBook[]> {
       location: book.location,
       createdAt: book.createdAt,
       lastVisitedAt: book.lastVisitedAt,
-      chapters: (book.chapters ?? []).map(({ id, title, level }) => ({ id, title, level })),
+      chapters: (book.chapters ?? []).map((ch) => toChapterMeta(ch)),
     }
     const contents = (book.chapters ?? []).map((ch) => ({
       id: ch.id,

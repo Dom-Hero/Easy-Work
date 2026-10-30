@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useEbookLibrary, type EbookBook } from '@/composables/useEbookLibrary'
 import HomeView from './HomeView.vue'
@@ -21,6 +21,25 @@ const activeBook = computed(() => {
 })
 
 const tocChapters = computed(() => activeBook.value?.chapters ?? [])
+const TOC_ITEM = 36
+const tocEl = ref<HTMLElement | null>(null)
+const tocScroll = ref(0)
+const tocVirtual = computed(() => tocChapters.value.length > 60)
+
+const visibleToc = computed(() => {
+  const chapters = tocChapters.value
+  if (!tocVirtual.value) return chapters.map((chapter, index) => ({ chapter, index }))
+  const start = Math.max(0, Math.floor(tocScroll.value / TOC_ITEM) - 6)
+  const end = Math.min(chapters.length, start + 28)
+  return chapters.slice(start, end).map((chapter, offset) => ({
+    chapter,
+    index: start + offset,
+  }))
+})
+
+function onTocScroll(event: Event) {
+  tocScroll.value = (event.target as HTMLElement).scrollTop
+}
 
 const navItems = [
   { key: 'home', label: '主页' },
@@ -31,7 +50,7 @@ const navItems = [
 
 function openBook(bookId: string) {
   const book = getBook(bookId)
-  if (!book) return
+  if (!book || book.status === 'parsing') return
 
   const chapters = Array.isArray(book.chapters) ? book.chapters : []
   readerBook.value = {
@@ -58,6 +77,23 @@ function selectChapter(id: string) {
 function goDashboard() {
   router.push('/dashboard')
 }
+
+watch(activeChapterId, (id) => {
+  if (!tocVirtual.value) return
+  const index = tocChapters.value.findIndex((chapter) => chapter.id === id)
+  const el = tocEl.value
+  if (!el || index < 0) return
+  const top = index * TOC_ITEM
+  const bottom = top + TOC_ITEM
+  if (top < el.scrollTop || bottom > el.scrollTop + el.clientHeight) {
+    el.scrollTop = Math.max(0, top - TOC_ITEM * 2)
+  }
+})
+
+watch(activeBookId, () => {
+  tocScroll.value = 0
+  if (tocEl.value) tocEl.value.scrollTop = 0
+})
 </script>
 
 <template>
@@ -111,12 +147,23 @@ function goDashboard() {
               :key="book.id"
               type="button"
               class="ebook-sidebar__book"
-              :title="book.title"
+              :title="book.status === 'parsing' ? `${book.title}（解析中）` : book.title"
+              :disabled="book.status === 'parsing'"
+              :aria-busy="book.status === 'parsing'"
               @click="openBook(book.id)"
             >
-              <span class="ebook-sidebar__book-icon" aria-hidden="true">书</span>
+              <span class="ebook-sidebar__book-icon" aria-hidden="true">
+                <i v-if="book.status === 'parsing'" class="ebook-sidebar__spinner" />
+                <template v-else>书</template>
+              </span>
               <span class="ebook-sidebar__book-title">{{ book.title }}</span>
-              <span class="ebook-sidebar__book-meta">{{ book.chapters.length }} 章</span>
+              <span class="ebook-sidebar__book-meta">
+                {{
+                  book.status === 'parsing'
+                    ? `解析中 ${book.parseProgress ?? 0}%`
+                    : `${book.chapters.length} 章`
+                }}
+              </span>
             </button>
           </nav>
         </div>
@@ -139,22 +186,41 @@ function goDashboard() {
             </span>
           </p>
         </div>
-        <nav class="ebook-sidebar__toc" aria-label="章节目录">
+        <nav
+          ref="tocEl"
+          class="ebook-sidebar__toc"
+          aria-label="章节目录"
+          @scroll.passive="onTocScroll"
+        >
           <p v-if="tocChapters.length === 0" class="ebook-sidebar__toc-empty">暂无章节目录</p>
-          <button
-            v-for="chapter in tocChapters"
-            :key="chapter.id"
-            type="button"
-            class="ebook-sidebar__toc-item"
-            :class="[
-              `ebook-sidebar__toc-item--l${chapter.level}`,
-              { 'ebook-sidebar__toc-item--active': chapter.id === activeChapterId },
-            ]"
-            :title="chapter.title"
-            @click="selectChapter(chapter.id)"
+          <div
+            v-else
+            class="ebook-sidebar__toc-list"
+            :style="tocVirtual ? { height: `${tocChapters.length * TOC_ITEM}px` } : undefined"
           >
-            {{ chapter.title }}
-          </button>
+            <button
+              v-for="item in visibleToc"
+              :key="item.chapter.id"
+              type="button"
+              class="ebook-sidebar__toc-item"
+              :class="[
+                `ebook-sidebar__toc-item--l${item.chapter.level}`,
+                {
+                  'ebook-sidebar__toc-item--active': item.chapter.id === activeChapterId,
+                  'ebook-sidebar__toc-item--virtual': tocVirtual,
+                },
+              ]"
+              :style="
+                tocVirtual
+                  ? { top: `${item.index * TOC_ITEM}px`, height: `${TOC_ITEM}px` }
+                  : undefined
+              "
+              :title="item.chapter.title"
+              @click="selectChapter(item.chapter.id)"
+            >
+              {{ item.chapter.title }}
+            </button>
+          </div>
         </nav>
       </template>
     </aside>
@@ -404,8 +470,28 @@ function goDashboard() {
   color: var(--clay-body, #3a3a3a);
 }
 
-.ebook-sidebar__book:hover {
+.ebook-sidebar__book:hover:not(:disabled) {
   background: color-mix(in srgb, var(--clay-brand-peach, #ffb084) 18%, transparent);
+}
+
+.ebook-sidebar__book:disabled {
+  cursor: progress;
+  opacity: 0.72;
+}
+
+.ebook-sidebar__spinner {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--clay-brand-teal, #1a3a3a) 25%, transparent);
+  border-top-color: var(--clay-brand-teal, #1a3a3a);
+  animation: ebook-spin 0.8s linear infinite;
+}
+
+@keyframes ebook-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .ebook-sidebar__book-icon {
@@ -483,6 +569,13 @@ function goDashboard() {
   padding-bottom: 8px;
 }
 
+.ebook-sidebar__toc-list {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .ebook-sidebar__toc-empty {
   margin: 8px;
   font-size: 12px;
@@ -521,6 +614,16 @@ function goDashboard() {
   background: color-mix(in srgb, var(--clay-brand-peach, #ffb084) 32%, white);
   color: var(--clay-ink, #0a0a0a);
   font-weight: 700;
+}
+
+.ebook-sidebar__toc-item--virtual {
+  position: absolute;
+  left: 0;
+  right: 0;
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ebook-main {

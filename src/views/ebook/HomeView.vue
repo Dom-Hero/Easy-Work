@@ -34,7 +34,7 @@ async function onFileChange(event: Event) {
   try {
     const result = await importTxtFile(file)
     if (!result.ok) {
-      message.warning(result.message)
+      if (!result.cancelled) message.warning(result.message)
       return
     }
     message.success(`已导入「${result.book.title}」（${result.encoding}）`)
@@ -68,6 +68,7 @@ function formatRelative(iso: string) {
 }
 
 function openBook(book: EbookBook) {
+  if (book.status === 'parsing') return
   emit('open', book.id)
 }
 
@@ -203,19 +204,27 @@ function confirmRemove(book: EbookBook) {
             v-for="book in books"
             :key="book.id"
             class="home__row"
-            tabindex="0"
+            :class="{ 'home__row--busy': book.status === 'parsing' }"
+            :tabindex="book.status === 'parsing' ? -1 : 0"
+            :aria-busy="book.status === 'parsing'"
             @click="openBook(book)"
             @keydown.enter="openBook(book)"
           >
             <td class="col-title">
               <div class="book-cell">
                 <span class="book-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none">
+                  <svg v-if="book.status !== 'parsing'" viewBox="0 0 24 24" fill="none">
                     <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
                     <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" stroke="currentColor" stroke-width="1.6" />
                   </svg>
+                  <i v-else class="book-spinner" />
                 </span>
-                <span class="book-title">{{ book.title }}</span>
+                <span class="book-title-wrap">
+                  <span class="book-title">{{ book.title }}</span>
+                  <span v-if="book.status === 'parsing'" class="book-parsing">
+                    解析中 {{ book.parseProgress ?? 0 }}%，完成前无法打开
+                  </span>
+                </span>
               </div>
             </td>
             <td class="col-loc">
@@ -466,6 +475,12 @@ function confirmRemove(book: EbookBook) {
   background: color-mix(in srgb, var(--clay-brand-peach, #ffb084) 12%, transparent);
 }
 
+.home__row--busy,
+.home__row--busy:hover {
+  cursor: progress;
+  background: transparent;
+}
+
 .home__empty {
   text-align: center;
   color: var(--clay-muted, #6a6a6a);
@@ -499,9 +514,37 @@ function confirmRemove(book: EbookBook) {
   height: 16px;
 }
 
+.book-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
 .book-title {
   font-weight: 600;
   color: var(--clay-ink, #0a0a0a);
+}
+
+.book-parsing {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--clay-muted, #6a6a6a);
+}
+
+.book-spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--clay-brand-teal, #1a3a3a) 25%, transparent);
+  border-top-color: var(--clay-brand-teal, #1a3a3a);
+  animation: home-spin 0.8s linear infinite;
+}
+
+@keyframes home-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .loc-pill {

@@ -16,11 +16,15 @@ const props = withDefaults(
     loading?: boolean
     failed?: boolean
     startAt?: 'start' | 'end'
+    prevText?: string
+    nextText?: string
   }>(),
   {
     loading: false,
     failed: false,
     startAt: 'start',
+    prevText: '上一章',
+    nextText: '下一章',
   },
 )
 
@@ -416,7 +420,7 @@ onBeforeUnmount(() => {
         class="immersive__chapter-btn"
         @click="emit('prev-chapter')"
       >
-        ← 上一章
+        ← {{ prevText }}
       </button>
       <span>{{ pageLabel }}</span>
       <button
@@ -425,7 +429,7 @@ onBeforeUnmount(() => {
         class="immersive__chapter-btn"
         @click="emit('next-chapter')"
       >
-        下一章 →
+        {{ nextText }} →
       </button>
       <span class="immersive__hint">点击书页左右侧或拖拽页角翻页 · 方向键也可翻页</span>
     </div>

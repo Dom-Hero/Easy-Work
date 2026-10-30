@@ -14,7 +14,7 @@ const emit = defineEmits<{
   'update:chapterId': [id: string]
 }>()
 
-const { loadChapterText } = useEbookLibrary()
+const { loadChapterPiece } = useEbookLibrary()
 
 type ReaderMode = 'document' | 'immersive'
 const MODE_KEY = 'ebook-reader-mode'
@@ -28,14 +28,20 @@ function readStoredMode(): ReaderMode {
   }
 }
 
-/** How many characters to mount into the DOM per step. */
-const CHUNK_CHARS = 12_000
+/** Document mode keeps at most this much text in the DOM, then slides forward. */
+const DOC_WINDOW_CHARS = 48_000
 
 const mode = ref<ReaderMode>(readStoredMode())
 const immersiveStartAt = ref<'start' | 'end'>('start')
-const fullText = ref('')
-const renderLimit = ref(CHUNK_CHARS)
+const pieceText = ref('')
+const pieceIndex = ref(0)
+const pieceCount = ref(0)
+const docText = ref('')
+const docFrom = ref(0)
+const docPieces = ref(0)
+const foldedEarlier = ref(false)
 const loading = ref(false)
+const loadingMore = ref(false)
 const loadFailed = ref(false)
 const contentEl = ref<HTMLElement | null>(null)
 
@@ -49,6 +55,7 @@ function setMode(next: ReaderMode) {
   } catch {
     /* ignore quota / private mode */
   }
+  if (next === 'document') scheduleFill()
 }
 
 const chapters = computed(() => props.book.chapters ?? [])
@@ -70,51 +77,152 @@ const nextChapter = computed(() =>
     : null,
 )
 
-const displayText = computed(() => {
-  if (fullText.value.length <= renderLimit.value) return fullText.value
-  return fullText.value.slice(0, renderLimit.value)
-})
+const displayText = computed(() =>
+  docText.value.endsWith('\n') ? docText.value.slice(0, -1) : docText.value,
+)
 
-const hasMore = computed(() => fullText.value.length > renderLimit.value)
+const hasMore = computed(() => docFrom.value + docPieces.value < pieceCount.value)
+
 const progressLabel = computed(() => {
-  if (!fullText.value) return ''
-  if (!hasMore.value) return `全文 ${fullText.value.length.toLocaleString()} 字`
-  return `已加载 ${Math.min(renderLimit.value, fullText.value.length).toLocaleString()} / ${fullText.value.length.toLocaleString()} 字`
+  if (pieceCount.value <= 1) return ''
+  const from = docFrom.value + 1
+  const to = docFrom.value + Math.max(docPieces.value, 1)
+  if (from === to) return `第 ${from} / ${pieceCount.value} 段`
+  return `第 ${from}–${to} / ${pieceCount.value} 段`
 })
 
-async function loadActiveChapter() {
-  const chapter = activeChapter.value
-  const seq = ++loadSeq
-  fullText.value = ''
-  renderLimit.value = CHUNK_CHARS
-  loadFailed.value = false
+const immersiveHasPrev = computed(() => pieceIndex.value > 0 || !!prevChapter.value)
+const immersiveHasNext = computed(
+  () => pieceIndex.value + 1 < pieceCount.value || !!nextChapter.value,
+)
+const immersivePrevLabel = computed(() => (pieceIndex.value > 0 ? '上一段' : '上一章'))
+const immersiveNextLabel = computed(() =>
+  pieceIndex.value + 1 < pieceCount.value ? '下一段' : '下一章',
+)
 
-  if (!chapter) return
-
-  loading.value = true
-  try {
-    const text = await loadChapterText(chapter.id)
-    if (seq !== loadSeq) return
-    fullText.value = text
-  } catch {
-    if (seq !== loadSeq) return
-    loadFailed.value = true
-    fullText.value = ''
-  } finally {
-    if (seq === loadSeq) loading.value = false
+function applyPiece(index: number, text: string, sliceCount: number, how: 'replace' | 'append') {
+  pieceCount.value = Math.max(0, sliceCount)
+  pieceIndex.value = index
+  pieceText.value = text.endsWith('\n') ? text.slice(0, -1) : text
+  if (how === 'replace') {
+    docFrom.value = index
+    docPieces.value = 1
+    docText.value = text
+    foldedEarlier.value = index > 0
+  } else {
+    docText.value += text
+    docPieces.value += 1
   }
 }
 
-function revealMore() {
-  if (!hasMore.value) return
-  renderLimit.value += CHUNK_CHARS
+function scheduleFill() {
+  if (mode.value !== 'document') return
+  requestAnimationFrame(() => maybeFill())
+}
+
+async function loadPiece(index: number, how: 'replace' | 'append', keepVisible = false) {
+  const chapter = activeChapter.value
+  if (!chapter) return
+  const seq = ++loadSeq
+  loadFailed.value = false
+  const block = how === 'replace' && !keepVisible
+  if (block) {
+    loading.value = true
+    pieceText.value = ''
+    docText.value = ''
+  } else {
+    loadingMore.value = true
+  }
+
+  try {
+    const piece = await loadChapterPiece(chapter, index)
+    if (seq !== loadSeq) return
+    applyPiece(index, piece.text, piece.sliceCount, how)
+    if (how === 'replace') requestAnimationFrame(() => scrollContentTop())
+  } catch {
+    if (seq !== loadSeq) return
+    if (block) loadFailed.value = true
+  } finally {
+    if (seq === loadSeq) {
+      loading.value = false
+      loadingMore.value = false
+      scheduleFill()
+    }
+  }
+}
+
+async function openChapter(startAt: 'start' | 'end') {
+  const chapter = activeChapter.value
+  if (!chapter) {
+    pieceText.value = ''
+    docText.value = ''
+    pieceCount.value = 0
+    pieceIndex.value = 0
+    return
+  }
+
+  if (startAt === 'end' && typeof chapter.sliceCount === 'number' && chapter.sliceCount > 1) {
+    await loadPiece(chapter.sliceCount - 1, 'replace')
+    return
+  }
+
+  if (startAt === 'end' && typeof chapter.sliceCount !== 'number') {
+    const seq = ++loadSeq
+    loading.value = true
+    pieceText.value = ''
+    docText.value = ''
+    loadFailed.value = false
+    try {
+      const head = await loadChapterPiece(chapter, 0)
+      if (seq !== loadSeq) return
+      const last = Math.max(0, head.sliceCount - 1)
+      if (last === 0) {
+        applyPiece(0, head.text, head.sliceCount, 'replace')
+        return
+      }
+      const piece = await loadChapterPiece(chapter, last)
+      if (seq !== loadSeq) return
+      applyPiece(last, piece.text, piece.sliceCount, 'replace')
+      scrollContentTop()
+    } catch {
+      if (seq !== loadSeq) return
+      loadFailed.value = true
+    } finally {
+      if (seq === loadSeq) {
+        loading.value = false
+        loadingMore.value = false
+        scheduleFill()
+      }
+    }
+    return
+  }
+
+  await loadPiece(0, 'replace')
+}
+
+async function revealMore() {
+  if (loading.value || loadingMore.value || !hasMore.value) return
+  const next = docFrom.value + Math.max(docPieces.value, 1)
+  if (next >= pieceCount.value) return
+  if (docText.value.length >= DOC_WINDOW_CHARS) {
+    await loadPiece(next, 'replace', true)
+    return
+  }
+  await loadPiece(next, 'append')
+}
+
+function maybeFill() {
+  const el = contentEl.value
+  if (!el || mode.value !== 'document' || loading.value || loadingMore.value || !hasMore.value) return
+  if (el.clientHeight === 0 || docText.value.length >= DOC_WINDOW_CHARS) return
+  if (el.scrollHeight <= el.clientHeight + 80) void revealMore()
 }
 
 function onContentScroll() {
   const el = contentEl.value
-  if (!el || !hasMore.value) return
+  if (!el || !hasMore.value || loading.value || loadingMore.value) return
   if (el.scrollTop + el.clientHeight >= el.scrollHeight - 240) {
-    revealMore()
+    void revealMore()
   }
 }
 
@@ -130,10 +238,20 @@ function goChapter(id: string | undefined, startAt: 'start' | 'end' = 'start') {
 }
 
 function onImmersivePrevChapter() {
+  if (pieceIndex.value > 0) {
+    immersiveStartAt.value = 'end'
+    void loadPiece(pieceIndex.value - 1, 'replace', true)
+    return
+  }
   goChapter(prevChapter.value?.id, 'end')
 }
 
 function onImmersiveNextChapter() {
+  if (pieceIndex.value + 1 < pieceCount.value) {
+    immersiveStartAt.value = 'start'
+    void loadPiece(pieceIndex.value + 1, 'replace', true)
+    return
+  }
   goChapter(nextChapter.value?.id, 'start')
 }
 
@@ -146,7 +264,7 @@ watch(
   () => [props.book.id, props.chapterId] as const,
   () => {
     scrollContentTop()
-    void loadActiveChapter()
+    void openChapter(immersiveStartAt.value)
   },
   { immediate: true },
 )
@@ -187,7 +305,7 @@ onBeforeUnmount(() => {
           沉浸
         </button>
       </div>
-      <label class="reader__mobile-toc">
+      <label v-if="chapters.length <= 200" class="reader__mobile-toc">
         <span class="sr-only">选择章节</span>
         <select :value="chapterId" @change="onMobileSelect">
           <option v-for="chapter in book.chapters" :key="chapter.id" :value="chapter.id">
@@ -195,14 +313,19 @@ onBeforeUnmount(() => {
           </option>
         </select>
       </label>
+      <p v-else class="reader__mobile-toc reader__mobile-pos">
+        {{ activeIndex + 1 }} / {{ chapters.length }} {{ activeChapter?.title }}
+      </p>
     </header>
 
     <ImmersiveReader
       v-if="mode === 'immersive'"
-      :text="fullText"
+      :text="pieceText"
       :title="activeChapter?.title || book.title"
-      :has-prev-chapter="!!prevChapter"
-      :has-next-chapter="!!nextChapter"
+      :has-prev-chapter="immersiveHasPrev"
+      :has-next-chapter="immersiveHasNext"
+      :prev-text="immersivePrevLabel"
+      :next-text="immersiveNextLabel"
       :loading="loading"
       :failed="loadFailed"
       :start-at="immersiveStartAt"
@@ -218,15 +341,22 @@ onBeforeUnmount(() => {
     >
       <h1 class="reader__chapter-title">{{ activeChapter?.title || book.title }}</h1>
 
-      <p v-if="loading" class="reader__status">正在加载正文…</p>
+      <p v-if="loading && !displayText" class="reader__status">
+        <i class="reader__spinner" aria-hidden="true" />
+        正在加载正文…
+      </p>
       <p v-else-if="loadFailed" class="reader__status">正文加载失败，请返回重试</p>
       <template v-else>
+        <p v-if="foldedEarlier" class="reader__folded">更早的内容已收起，当前从本段继续</p>
         <pre class="reader__text">{{ displayText || '（本章暂无正文）' }}</pre>
         <div v-if="hasMore" class="reader__more">
           <p class="reader__progress">{{ progressLabel }}</p>
-          <button type="button" class="reader__more-btn" @click="revealMore">继续加载</button>
+          <button type="button" class="reader__more-btn" :disabled="loadingMore" @click="revealMore">
+            {{ loadingMore ? '加载中…' : '继续加载' }}
+          </button>
         </div>
-        <p v-else-if="fullText" class="reader__progress">{{ progressLabel }}</p>
+        <p v-else-if="progressLabel" class="reader__progress">{{ progressLabel }}</p>
+        <p v-if="loadingMore" class="reader__progress">正在加载后续…</p>
 
         <nav v-if="chapters.length > 1" class="reader__pager" aria-label="章节翻页">
           <button
@@ -395,8 +525,38 @@ onBeforeUnmount(() => {
 
 .reader__status {
   margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   color: var(--clay-muted, #6a6a6a);
   font-size: 14px;
+}
+
+.reader__spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--clay-muted, #6a6a6a) 35%, transparent);
+  border-top-color: var(--clay-ink, #0a0a0a);
+  animation: reader-spin 0.8s linear infinite;
+}
+
+@keyframes reader-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.reader__folded {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--clay-muted, #6a6a6a);
+}
+
+.reader__mobile-pos {
+  margin: 0;
+  font-size: 13px;
+  color: var(--clay-muted, #6a6a6a);
 }
 
 .reader__text {
