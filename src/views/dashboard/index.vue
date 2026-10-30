@@ -232,7 +232,7 @@ watch(filteredList, () => {
     <header ref="heroRef" class="hero">
       <div class="hero-copy">
         <span class="hero-badge">工具导航</span>
-        <h1 class="hero-title">把常用工具收进一块奶油色画布</h1>
+        <h1 class="hero-title">常用工具一站式导航</h1>
         <p class="hero-lead">搜索、点选、跳转——用轻松一点的节奏打理你的入口。</p>
       </div>
       <div
