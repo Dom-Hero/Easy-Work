@@ -188,7 +188,7 @@ watch(activeBookId, () => {
         </div>
         <nav
           ref="tocEl"
-          class="ebook-sidebar__toc"
+          class="ebook-sidebar__toc clay-scroll"
           aria-label="章节目录"
           @scroll.passive="onTocScroll"
         >

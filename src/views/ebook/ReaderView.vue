@@ -336,7 +336,7 @@ onBeforeUnmount(() => {
     <article
       v-else
       ref="contentEl"
-      class="reader__content"
+      class="reader__content clay-scroll"
       @scroll.passive="onContentScroll"
     >
       <h1 class="reader__chapter-title">{{ activeChapter?.title || book.title }}</h1>
