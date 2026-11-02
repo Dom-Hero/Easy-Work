@@ -211,8 +211,8 @@ function shuffle<T>(arr: T[]): T[] {
   const a = arr.slice()
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
-    const tmp = a[i]
-    a[i] = a[j]
+    const tmp = a[i]!
+    a[i] = a[j]!
     a[j] = tmp
   }
   return a
@@ -226,7 +226,7 @@ function buildDeck(): Card[] {
   function makePool(): CardType[] {
     const pool: CardType[] = []
     for (let g = 0; g < groupCount; g++) {
-      const t = TYPES[g % TYPES.length]
+      const t = TYPES[g % TYPES.length]!
       pool.push(t, t, t)
     }
     return shuffle(pool)
@@ -236,7 +236,7 @@ function buildDeck(): Card[] {
     const pool = makePool()
     const deck: Card[] = positions.map((p, i) => ({
       id: idSeq++,
-      type: pool[i],
+      type: pool[i]!,
       pile: p.pile,
       layer: p.layer,
       col: p.col,
@@ -245,6 +245,7 @@ function buildDeck(): Card[] {
       jy: p.jy,
       state: 'pile',
       slotIndex: -1,
+      holdIndex: -1,
       removing: false,
     }))
     if (isSolvable(deck)) return deck
@@ -253,7 +254,7 @@ function buildDeck(): Card[] {
   const pool = makePool()
   return positions.map((p, i) => ({
     id: idSeq++,
-    type: pool[i],
+    type: pool[i]!,
     pile: p.pile,
     layer: p.layer,
     col: p.col,
@@ -262,6 +263,7 @@ function buildDeck(): Card[] {
     jy: p.jy,
     state: 'pile' as const,
     slotIndex: -1,
+    holdIndex: -1,
     removing: false,
   }))
 }
@@ -390,28 +392,16 @@ function propShuffle() {
   const board = cards.value.filter(c => c.state === 'pile')
   if (board.length === 0) return
   for (let attempt = 0; attempt < 30; attempt++) {
-    const types = board.map(c => c.type)
-    for (let i = types.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1))
-      const tmp = types[i]
-      types[i] = types[j]
-      types[j] = tmp
-    }
-    const snapshot = board.map((c, i) => ({ ...c, type: types[i] }))
+    const types = shuffle(board.map(c => c.type))
+    const snapshot = board.map((c, i) => ({ ...c, type: types[i]! }))
     if (isSolvable([...snapshot, ...cards.value.filter(c => c.state === 'slot')])) {
-      board.forEach((c, i) => (c.type = types[i]))
+      board.forEach((c, i) => (c.type = types[i]!))
       propsLeft.value.shuffle -= 1
       return
     }
   }
-  const types = board.map(c => c.type)
-  for (let i = types.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    const tmp = types[i]
-    types[i] = types[j]
-    types[j] = tmp
-  }
-  board.forEach((c, i) => (c.type = types[i]))
+  const types = shuffle(board.map(c => c.type))
+  board.forEach((c, i) => (c.type = types[i]!))
   propsLeft.value.shuffle -= 1
 }
 
