@@ -1,6 +1,13 @@
 <script setup lang="ts">
-// 小电视页面 —— 静态展示页，仿飞书文档样式，无交互逻辑
+// 小电视页面 —— 仿飞书文档样式，左上角工作台可返回主页
+import { useRouter } from 'vue-router'
 import FloatingTv from '@/components/FloatingTv.vue'
+
+const router = useRouter()
+function goDashboard() {
+  router.push('/dashboard')
+}
+
 const navItems = [
   { key: 'home', label: '主页', icon: '⌂' },
   { key: 'docs', label: '文档', icon: '▤' },
@@ -25,7 +32,7 @@ const channels = [
           <span class="tv-sidebar__mark" aria-hidden="true">视</span>
           <span>小电视</span>
         </button>
-        <button type="button" class="tv-sidebar__exit" tabindex="-1" title="返回工作台">
+        <button type="button" class="tv-sidebar__exit" title="返回工作台" @click="goDashboard">
           工作台
         </button>
       </div>
@@ -373,6 +380,14 @@ const channels = [
   font-weight: 600;
   padding: 4px 8px;
   border-radius: 999px;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.tv-sidebar__exit:hover {
+  color: var(--clay-ink, #0a0a0a);
+  border-color: var(--clay-muted-soft, #9a9a9a);
+  transform: translateY(-1px);
 }
 
 .tv-sidebar__search {
