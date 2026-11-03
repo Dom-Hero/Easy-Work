@@ -1,5 +1,6 @@
 <script setup lang="ts">
 // 小电视页面 —— 仿飞书文档样式，左上角工作台可返回主页
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import FloatingTv from '@/components/FloatingTv.vue'
 
@@ -15,13 +16,27 @@ const navItems = [
   { key: 'star', label: '收藏', icon: '★' },
 ]
 
-const channels = [
-  { id: 'c1', label: '小电视产品说明书', meta: '刚刚编辑', tone: 'lavender' },
-  { id: 'c2', label: '设计灵感收集', meta: '昨天', tone: 'peach' },
-  { id: 'c3', label: '摸鱼图鉴', meta: '3 天前', tone: 'mint' },
-  { id: 'c4', label: '工位摆件清单', meta: '上周', tone: 'ochre' },
-  { id: 'c5', label: '复古像素画廊', meta: '10 月', tone: 'coral' },
+interface Channel {
+  id: string
+  label: string
+  meta: string
+  tone: string
+  emoji: string
+  author: string
+  created: string
+}
+
+const channels: Channel[] = [
+  { id: 'c1', label: '小电视产品说明书', meta: '刚刚编辑', tone: 'lavender', emoji: '📺', author: '小胖', created: '2026-10-30' },
+  { id: 'c2', label: '设计灵感收集', meta: '昨天', tone: 'peach', emoji: '🎨', author: '小胖', created: '2026-10-22' },
+  { id: 'c3', label: '摸鱼图鉴', meta: '3 天前', tone: 'mint', emoji: '🐟', author: '小胖', created: '2026-10-31' },
+  { id: 'c4', label: '工位摆件清单', meta: '上周', tone: 'ochre', emoji: '🧸', author: '小胖', created: '2026-10-25' },
+  { id: 'c5', label: '复古像素画廊', meta: '10 月', tone: 'coral', emoji: '👾', author: '小胖', created: '2026-10-12' },
+  { id: 'c6', label: '羊了个羊玩法与算法', meta: '刚刚编辑', tone: 'mint', emoji: '🐑', author: '小胖', created: '2026-11-03' },
 ]
+
+const activeId = ref<Channel['id']>('c1')
+const activeChannel = computed(() => channels.find(c => c.id === activeId.value) ?? channels[0]!)
 </script>
 
 <template>
@@ -70,14 +85,15 @@ const channels = [
             :key="channel.id"
             type="button"
             class="tv-sidebar__channel"
-            tabindex="-1"
+            :class="{ 'tv-sidebar__channel--active': channel.id === activeId }"
+            @click="activeId = channel.id"
           >
             <span
               class="tv-sidebar__channel-icon"
               :class="`tv-sidebar__channel-icon--${channel.tone}`"
               aria-hidden="true"
             >
-              {{ channel.label.slice(0, 1) }}
+              {{ channel.emoji }}
             </span>
             <span class="tv-sidebar__channel-body">
               <span class="tv-sidebar__channel-title">{{ channel.label }}</span>
@@ -101,7 +117,7 @@ const channels = [
           <span class="tv-topbar__crumb-sep">/</span>
           <span>文档</span>
           <span class="tv-topbar__crumb-sep">/</span>
-          <span class="tv-topbar__crumb-current">小电视产品说明书</span>
+          <span class="tv-topbar__crumb-current">{{ activeChannel.label }}</span>
         </nav>
         <div class="tv-topbar__actions" aria-hidden="true">
           <button type="button" class="tv-topbar__btn" tabindex="-1" title="搜索">
@@ -142,21 +158,23 @@ const channels = [
       <div class="tv-content clay-scroll">
         <article class="tv-doc">
           <div class="tv-doc__cover" aria-hidden="true">
-            <span class="tv-doc__cover-emoji">📺</span>
-            <span class="tv-doc__cover-tag">Designer: 小胖</span>
+            <span class="tv-doc__cover-emoji">{{ activeChannel.emoji }}</span>
+            <span class="tv-doc__cover-tag">Designer: {{ activeChannel.author }}</span>
           </div>
 
-          <h1 class="tv-doc__title">小电视产品说明书</h1>
+          <h1 class="tv-doc__title">{{ activeChannel.label }}</h1>
           <p class="tv-doc__meta">
             <span class="tv-doc__meta-item">
-              <span class="tv-doc__avatar">胖</span> 小胖
+              <span class="tv-doc__avatar">{{ activeChannel.author.slice(0, 1) }}</span> {{ activeChannel.author }}
             </span>
             <span class="tv-doc__meta-sep">·</span>
-            <span class="tv-doc__meta-item">创建于 2026-10-30</span>
+            <span class="tv-doc__meta-item">创建于 {{ activeChannel.created }}</span>
             <span class="tv-doc__meta-sep">·</span>
-            <span class="tv-doc__meta-item">最近编辑：刚刚</span>
+            <span class="tv-doc__meta-item">最近编辑：{{ activeChannel.meta }}</span>
           </p>
 
+          <!-- c1：小电视产品说明书 -->
+          <template v-if="activeId === 'c1'">
           <section class="tv-doc__block">
             <h2 class="tv-doc__h2">一、概述</h2>
             <p class="tv-doc__p">
@@ -300,6 +318,182 @@ const channels = [
               </a>
             </div>
           </section>
+          </template>
+
+          <!-- c6：羊了个羊玩法与算法 -->
+          <template v-else-if="activeId === 'c6'">
+          <section class="tv-doc__block">
+            <h2 class="tv-doc__h2">一、玩法说明</h2>
+            <p class="tv-doc__p">
+              「羊了个羊」是一款层叠消除类小游戏。牌桌由多层卡牌堆叠而成，玩家需要点击
+              <strong>未被上层覆盖</strong> 的卡牌，将其送入底部 7 格槽位；槽位中集齐
+              <strong>3 张相同图案</strong> 的卡牌即自动消除。清空全部卡牌即获胜，
+              若槽位满 7 张且无法再消除则失败。
+            </p>
+            <ul class="tv-doc__list">
+              <li>
+                <span class="tv-doc__list-marker">✦</span>
+                <p><strong>点击</strong>：点击卡堆中露出的（未被覆盖的）卡牌，它会飞入底部槽位末尾。</p>
+              </li>
+              <li>
+                <span class="tv-doc__list-marker">✦</span>
+                <p><strong>消除</strong>：槽位内同图案达到 3 张时自动消除，腾出空间。</p>
+              </li>
+              <li>
+                <span class="tv-doc__list-marker">✦</span>
+                <p><strong>暂放区</strong>：使用「移出」道具可把一张卡牌挪到暂放区，不占槽位、不计消除，必要时可点回槽位。</p>
+              </li>
+              <li>
+                <span class="tv-doc__list-marker">✦</span>
+                <p><strong>胜负</strong>：所有卡牌消除完毕 → 获胜；槽位满 7 张且无三同 → 失败。</p>
+              </li>
+            </ul>
+            <div class="tv-doc__callout tv-doc__callout--info">
+              <span class="tv-doc__callout-icon" aria-hidden="true">💡</span>
+              <p>本作刻意调高了难度：每局有解率每次重开都会随机生成，且严格不超过 10%，绝大多数局面需要靠道具与运气才能通关。</p>
+            </div>
+          </section>
+
+          <section class="tv-doc__block">
+            <h2 class="tv-doc__h2">二、道具系统</h2>
+            <div class="tv-doc__table-wrap">
+              <table class="tv-doc__table">
+                <thead>
+                  <tr>
+                    <th>道具</th>
+                    <th>次数</th>
+                    <th>作用</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>移出</td>
+                    <td>3</td>
+                    <td>把任意一张可点击的卡堆卡或槽位卡挪到暂放区，缓解槽位压力</td>
+                  </tr>
+                  <tr>
+                    <td>撤回</td>
+                    <td>3</td>
+                    <td>把槽位中最后一张卡牌退回原卡堆位置</td>
+                  </tr>
+                  <tr>
+                    <td>洗牌</td>
+                    <td>1</td>
+                    <td>重新随机分配卡堆中剩余卡牌的类型（槽位卡不变）</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="tv-doc__block">
+            <h2 class="tv-doc__h2">三、堆叠结构</h2>
+            <p class="tv-doc__p">
+              牌桌采用 <strong>直接覆盖堆叠</strong>（层间无错位偏移），共 7 层：
+              <code class="tv-doc__code">8×4 / 8×4 / 6×3 / 6×3 / 6×3 / 5×3 / 4×3</code>，
+              另加左右两个侧堆各 7 张。其中 <code class="tv-doc__code">8×4</code> 重复 2 次、
+              <code class="tv-doc__code">6×3</code> 重复 3 次——同尺寸层完全重叠，上层把下层完全盖住，
+              形成「隐藏层」。玩家可见 4 个阶梯，实际却有 7 层，难以看清底下到底压着几层。
+            </p>
+            <div class="tv-doc__callout tv-doc__callout--info">
+              <span class="tv-doc__callout-icon" aria-hidden="true">🎯</span>
+              <p>总卡数 159（board 145 + 侧堆 14），恰好 53 组三连，可被 3 整除。</p>
+            </div>
+          </section>
+
+          <section class="tv-doc__block">
+            <h2 class="tv-doc__h2">四、关卡生成算法</h2>
+            <p class="tv-doc__p">
+              每次重开时，先随机生成一个 <code class="tv-doc__code">solvableRate ∈ [0, 0.10]</code>
+              作为本局有解率，再据此决定走「构造法」或「纯随机」：
+            </p>
+            <ul class="tv-doc__list">
+              <li>
+                <span class="tv-doc__list-marker">✦</span>
+                <p>
+                  <strong>构造法（小概率，必有解）</strong>：以 <code class="tv-doc__code">Math.random() &lt; solvableRate</code>
+                  命中时启用。计算卡牌间的覆盖关系 DAG，用 Kahn 拓扑排序得到一个合法移除顺序，
+                  再沿该顺序每 3 张分配同类型。按此顺序点击时每张牌轮到时都已不被覆盖、且每三连立即消除，
+                  槽位从不超过 3，故必有解。
+                </p>
+              </li>
+              <li>
+                <span class="tv-doc__list-marker">✦</span>
+                <p>
+                  <strong>纯随机（大概率，极难/无解）</strong>：未命中时，把「每 3 张同类型」的类型池打乱后随机分配到各位置，
+                  不做可解校验。贪心求解器实测对这种牌局可解率为 0%，对玩家而言即极难/无解。
+                </p>
+              </li>
+            </ul>
+            <p class="tv-doc__p">核心构造法伪代码如下：</p>
+            <pre class="tv-doc__code-block"><code>function buildSolvable(positions):
+    deck = positions.map(建空牌)
+    order = topoOrder(deck)          # 覆盖关系 DAG 的 Kahn 拓扑序
+    for k in 0 .. groupCount-1:
+        t = TYPES[k % TYPES.length]
+        for r in 0..2:
+            deck[order[k*3 + r]].type = t   # 沿移除序每 3 张同类型
+    return deck
+
+function topoOrder(deck):
+    # 覆盖者 → 被覆盖者 的有向边，入度 = 被多少张牌覆盖
+    # 入度为 0（顶层、可先移除）的入队，随机出队，逐步剥离
+    # 返回一个合法的移除顺序（覆盖者在前）</code></pre>
+          </section>
+
+          <section class="tv-doc__block">
+            <h2 class="tv-doc__h2">五、覆盖与求解判定</h2>
+            <p class="tv-doc__p">
+              <strong>覆盖判定</strong> <code class="tv-doc__code">covers(a, b)</code>：a、b 同堆、
+              a 层 &gt; b 层，且（board 堆还需矩形重叠）时，a 覆盖 b。只有未被任何牌覆盖的卡牌才可点击。
+            </p>
+            <p class="tv-doc__p">
+              <strong>贪心求解器</strong> <code class="tv-doc__code">isSolvable</code>：每步在所有可点击牌中，
+              选「该类型在可点击牌与槽位中出现总数最多」的一张送入槽位，模拟三连消除与槽位上限，
+              能清空则判定可解。它是一条启发式解法——能解出 ⇒ 必有解；解不出 ⇒ 对玩家极难。
+            </p>
+            <div class="tv-doc__callout tv-doc__callout--info">
+              <span class="tv-doc__callout-icon" aria-hidden="true">⚠️</span>
+              <p>实测贪心求解器对纯随机牌局可解率为 0%，因此无法用它「挑出」有解牌局——这正是改用构造法保证有解、用随机率控制难度的原因。</p>
+            </div>
+          </section>
+
+          <section class="tv-doc__block">
+            <h2 class="tv-doc__h2">六、相关链接</h2>
+            <div class="tv-doc__links">
+              <a class="tv-doc__link-card" tabindex="-1">
+                <span class="tv-doc__link-icon" aria-hidden="true">🐑</span>
+                <span class="tv-doc__link-body">
+                  <span class="tv-doc__link-title">羊了个羊组件源码</span>
+                  <span class="tv-doc__link-desc">src/components/SheepGame.vue</span>
+                </span>
+                <span class="tv-doc__link-arrow" aria-hidden="true">↗</span>
+              </a>
+              <a class="tv-doc__link-card" tabindex="-1">
+                <span class="tv-doc__link-icon" aria-hidden="true">📺</span>
+                <span class="tv-doc__link-body">
+                  <span class="tv-doc__link-title">小电视悬浮入口</span>
+                  <span class="tv-doc__link-desc">src/components/FloatingTv.vue</span>
+                </span>
+                <span class="tv-doc__link-arrow" aria-hidden="true">↗</span>
+              </a>
+            </div>
+          </section>
+          </template>
+
+          <!-- 其他频道：占位 -->
+          <template v-else>
+            <section class="tv-doc__block">
+              <h2 class="tv-doc__h2">一、敬请期待</h2>
+              <p class="tv-doc__p">
+                「{{ activeChannel.label }}」文档正在整理中，先去看看其他频道吧～
+              </p>
+              <div class="tv-doc__callout tv-doc__callout--info">
+                <span class="tv-doc__callout-icon" aria-hidden="true">📝</span>
+                <p>本频道内容尚未发布，可点击左侧「羊了个羊玩法与算法」查看完整示例文档。</p>
+              </div>
+            </section>
+          </template>
 
           <div class="tv-doc__divider" aria-hidden="true">
             <span>正文到此结束</span>
@@ -495,6 +689,22 @@ const channels = [
   border-radius: 10px;
   text-align: left;
   color: var(--clay-body, #3a3a3a);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.tv-sidebar__channel:hover {
+  background: color-mix(in srgb, var(--clay-canvas, #fffaf0) 70%, white);
+}
+
+.tv-sidebar__channel--active {
+  background: color-mix(in srgb, var(--clay-brand-lavender, #b8a4ed) 28%, white);
+  color: var(--clay-ink, #0a0a0a);
+}
+
+.tv-sidebar__channel--active .tv-sidebar__channel-title {
+  color: var(--clay-ink, #0a0a0a);
+  font-weight: 700;
 }
 
 .tv-sidebar__channel-icon {
@@ -900,6 +1110,41 @@ const channels = [
   font-size: 11px;
   color: var(--clay-muted, #6a6a6a);
   font-family: 'SF Mono', 'Menlo', monospace;
+}
+
+/* 内联代码 */
+.tv-doc__code {
+  display: inline-block;
+  padding: 1px 7px;
+  margin: 0 2px;
+  border-radius: 6px;
+  font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  font-size: 13px;
+  color: var(--clay-brand-teal, #1a3a3a);
+  background: color-mix(in srgb, var(--clay-brand-mint, #a4d4c5) 22%, white);
+  border: 1px solid var(--clay-hairline-soft, #f0f0f0);
+  white-space: nowrap;
+}
+
+/* 代码块 */
+.tv-doc__code-block {
+  margin: 12px 0 4px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #2c2c2c;
+  color: #f4ecd8;
+  font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  overflow: auto;
+  white-space: pre;
+}
+
+.tv-doc__code-block code {
+  font-family: inherit;
+  color: inherit;
+  background: transparent;
+  padding: 0;
 }
 
 .tv-doc__table-wrap {

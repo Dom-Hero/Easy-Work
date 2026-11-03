@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
-type CardType = '🥕' | '🌽' | '🔔' | '🪣' | '🧤' | '🥛' | '🌾' | '🥬' | '🐑' | '🍅' | '🥒' | '🐝' | '🐔' | '🍓' | '🍇' | '🌻'
-const TYPES: CardType[] = ['🥕', '🌽', '🔔', '🪣', '🧤', '🥛', '🌾', '🥬', '🐑', '🍅', '🥒', '🐝', '🐔', '🍓', '🍇', '🌻']
+type CardType = '🥕' | '🌽' | '🔔' | '🪣' | '🧤' | '🥛' | '🌾' | '🥬' | '🐑' | '🍅' | '🥒' | '🐝' | '🐔' | '🍓' | '🍇' | '🌻' | '🦆' | '🥝'
+const TYPES: CardType[] = ['🥕', '🌽', '🔔', '🪣', '🧤', '🥛', '🌾', '🥬', '🐑', '🍅', '🥒', '🐝', '🐔', '🍓', '🍇', '🌻', '🦆', '🥝']
 
 type Pile = 'board' | 'left' | 'right'
 
@@ -49,7 +49,7 @@ const SLOT_CELL_H = 36
 const SLOT_GAP = 4
 const SLOT_Y_OFFSET = 14
 
-const PROPS_INIT = { shuffle: 3, undo: 3, remove: 3 }
+const PROPS_INIT = { shuffle: 1, undo: 3, remove: 3 }
 
 let idSeq = 0
 const cards = ref<Card[]>([])
@@ -206,7 +206,18 @@ function isSolvable(initial: Card[]): boolean {
   return false
 }
 
-// ===== 生成可解关卡（同类型尽量跨层分散，避免一层同色） =====
+// ===== 生成关卡：大概率无解，小概率有解（不超过 10%） =====
+// 求解器 isSolvable 为贪心启发式，对随机牌局几乎判定为无解（实测 0% 可解），
+// 因此无法用它"挑出"有解牌局。改为：
+//   - 以 solvableRate 概率走"构造法"：按覆盖拓扑序分组三连，保证必有解；
+//   - 否则走"纯随机"：贪心解不出，对玩家而言即极难/无解。
+// solvableRate 每次重开随机生成，取值 [0, 0.10]，保证有解率始终不超过 10%。
+let solvableRate = randomSolvableRate()
+
+function randomSolvableRate(): number {
+  return Math.random() * 0.1 // 0% – 10%
+}
+
 function shuffle<T>(arr: T[]): T[] {
   const a = arr.slice()
   for (let i = a.length - 1; i > 0; i--) {
@@ -218,40 +229,92 @@ function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
+// a 是否覆盖 b（a 在上层且与 b 重叠）
+function covers(a: Card, b: Card): boolean {
+  if (a.pile !== b.pile) return false
+  if (a.layer <= b.layer) return false
+  if (a.pile === 'board' && !rectOverlap(b, a)) return false
+  return true
+}
+
+// 覆盖关系的拓扑序（覆盖者在前 = 移除顺序），Kahn 算法 + 随机出队
+function topoOrder(deck: Card[]): number[] | null {
+  const n = deck.length
+  const indeg = new Array(n).fill(0)
+  const adj: number[][] = Array.from({ length: n }, () => [])
+  for (let a = 0; a < n; a++) {
+    for (let b = 0; b < n; b++) {
+      if (covers(deck[a]!, deck[b]!)) {
+        adj[a]!.push(b)
+        indeg[b]!++
+      }
+    }
+  }
+  const queue: number[] = []
+  for (let i = 0; i < n; i++) if (indeg[i] === 0) queue.push(i)
+  const order: number[] = []
+  while (queue.length) {
+    const idx = queue.splice(Math.floor(Math.random() * queue.length), 1)[0]!
+    order.push(idx)
+    for (const j of adj[idx]!) {
+      if (--indeg[j]! === 0) queue.push(j)
+    }
+  }
+  return order.length === n ? order : null
+}
+
+// 类型池：每组 3 张同类型，按总数生成并打乱
+function makePool(total: number): CardType[] {
+  const groupCount = Math.floor(total / 3)
+  const pool: CardType[] = []
+  for (let g = 0; g < groupCount; g++) {
+    const t = TYPES[g % TYPES.length]!
+    pool.push(t, t, t)
+  }
+  return shuffle(pool)
+}
+
+// 构造法：按拓扑序每 3 张同类型，保证按该顺序点击可通关（槽位不超过 3）
+function buildSolvable(positions: ReturnType<typeof genSlots>): Card[] {
+  const deck: Card[] = positions.map((p, i) => ({
+    id: idSeq++,
+    type: TYPES[0]!,
+    pile: p.pile,
+    layer: p.layer,
+    col: p.col,
+    row: p.row,
+    jx: p.jx,
+    jy: p.jy,
+    state: 'pile',
+    slotIndex: -1,
+    holdIndex: -1,
+    removing: false,
+  }))
+  const order = topoOrder(deck)
+  if (order) {
+    const groupCount = Math.floor(deck.length / 3)
+    for (let k = 0; k < groupCount; k++) {
+      const t = TYPES[k % TYPES.length]!
+      for (let r = 0; r < 3; r++) deck[order[k * 3 + r]!]!.type = t
+    }
+  } else {
+    // 极端兜底：拓扑排序失败（不应发生），退回随机
+    const pool = makePool(deck.length)
+    deck.forEach((c, i) => (c.type = pool[i]!))
+  }
+  return deck
+}
+
 function buildDeck(): Card[] {
   const positions = genSlots()
-  const total = positions.length
-  const groupCount = total / 3
-  // 类型池：每组 3 张同类型
-  function makePool(): CardType[] {
-    const pool: CardType[] = []
-    for (let g = 0; g < groupCount; g++) {
-      const t = TYPES[g % TYPES.length]!
-      pool.push(t, t, t)
-    }
-    return shuffle(pool)
+
+  // 以 solvableRate 概率走构造法生成必有解牌局
+  if (Math.random() < solvableRate) {
+    return buildSolvable(positions)
   }
-  // 多次随机分配 + 求解器校验，命中即采用
-  for (let attempt = 0; attempt < 60; attempt++) {
-    const pool = makePool()
-    const deck: Card[] = positions.map((p, i) => ({
-      id: idSeq++,
-      type: pool[i]!,
-      pile: p.pile,
-      layer: p.layer,
-      col: p.col,
-      row: p.row,
-      jx: p.jx,
-      jy: p.jy,
-      state: 'pile',
-      slotIndex: -1,
-      holdIndex: -1,
-      removing: false,
-    }))
-    if (isSolvable(deck)) return deck
-  }
-  // 兜底：返回最后一次随机分配（同类型已跨层分散，大概率可解）
-  const pool = makePool()
+
+  // 85%：纯随机分配（贪心解不出，对玩家即极难/无解）
+  const pool = makePool(positions.length)
   return positions.map((p, i) => ({
     id: idSeq++,
     type: pool[i]!,
@@ -269,6 +332,7 @@ function buildDeck(): Card[] {
 }
 
 function start() {
+  solvableRate = randomSolvableRate() // 每次重开重新随机化有解率（≤10%）
   cards.value = buildDeck()
   phase.value = 'playing'
   busy.value = false
