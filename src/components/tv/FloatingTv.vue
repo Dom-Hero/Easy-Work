@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import SheepGame from '@/components/SheepGame.vue'
+import SheepGame from '@/components/games/SheepGame.vue'
 
 const SIZE = 56 // 按钮尺寸
 const MARGIN = 24 // 默认外边距

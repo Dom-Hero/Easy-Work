@@ -1,0 +1,1 @@
+import{a as e}from"./user-D_-Bf5YB.js";export{e as markdown};

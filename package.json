@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
-    "format": "prettier --write --experimental-cli src/"
+    "format": "prettier --write --experimental-cli src/",
+    "match3:rate": "npx --yes tsx scripts/match3-rate.ts"
   },
   "dependencies": {
     "ant-design-vue": "^4.2.6",

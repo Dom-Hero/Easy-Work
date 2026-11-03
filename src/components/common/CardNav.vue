@@ -3,10 +3,10 @@ import { gsap } from 'gsap';
 import { nextTick, onBeforeUpdate, onMounted, onUnmounted, ref, watch, type VNodeRef } from 'vue';
 import { useRouter } from 'vue-router';
 import { useCardFilter } from '@/composables/useCardFilter';
-import Ebook from './ebook.vue';
+import Ebook from '../ebook/ebook.vue';
 import Note from './note.vue';
 import StartBtn from './startBtn.vue';
-import Tv from './tv.vue';
+import Tv from '../tv/tv.vue';
 
 const router = useRouter();
 

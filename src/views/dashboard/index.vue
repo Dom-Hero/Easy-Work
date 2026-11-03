@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { herfList } from '@/constants/herfList'
-import InfoCard from '@/components/infoCard.vue'
+import InfoCard from '@/components/common/infoCard.vue'
 import { useCardFilter } from '@/composables/useCardFilter'
 import { gsap } from 'gsap'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'

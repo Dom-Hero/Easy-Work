@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import CardNav from '@/components/CardNav.vue'
-import AiChatDrawer from '@/components/AiChatDrawer.vue'
+import CardNav from '@/components/common/CardNav.vue'
+import AiChatDrawer from '@/components/common/AiChatDrawer.vue'
 import clayOilLandscape from '@/assets/backgrounds/clay-oil-landscape.jpg'
 
 const items = [

@@ -2,7 +2,8 @@
 // 小电视页面 —— 仿飞书文档样式，左上角工作台可返回主页
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import FloatingTv from '@/components/FloatingTv.vue'
+import FloatingTv from '@/components/tv/FloatingTv.vue'
+import FloatingMatch3 from '@/components/tv/FloatingMatch3.vue'
 
 const router = useRouter()
 function goDashboard() {
@@ -28,11 +29,8 @@ interface Channel {
 
 const channels: Channel[] = [
   { id: 'c1', label: '小电视产品说明书', meta: '刚刚编辑', tone: 'lavender', emoji: '📺', author: '小胖', created: '2026-10-30' },
-  { id: 'c2', label: '设计灵感收集', meta: '昨天', tone: 'peach', emoji: '🎨', author: '小胖', created: '2026-10-22' },
-  { id: 'c3', label: '摸鱼图鉴', meta: '3 天前', tone: 'mint', emoji: '🐟', author: '小胖', created: '2026-10-31' },
-  { id: 'c4', label: '工位摆件清单', meta: '上周', tone: 'ochre', emoji: '🧸', author: '小胖', created: '2026-10-25' },
-  { id: 'c5', label: '复古像素画廊', meta: '10 月', tone: 'coral', emoji: '👾', author: '小胖', created: '2026-10-12' },
   { id: 'c6', label: '羊了个羊玩法与算法', meta: '刚刚编辑', tone: 'mint', emoji: '🐑', author: '小胖', created: '2026-11-03' },
+  { id: 'c7', label: '我的小家玩法与算法', meta: '刚刚编辑', tone: 'peach', emoji: '🏠', author: '小胖', created: '2026-11-03' },
 ]
 
 const activeId = ref<Channel['id']>('c1')
@@ -296,7 +294,7 @@ const activeChannel = computed(() => channels.find(c => c.id === activeId.value)
                 <span class="tv-doc__link-icon" aria-hidden="true">📺</span>
                 <span class="tv-doc__link-body">
                   <span class="tv-doc__link-title">小电视组件源码</span>
-                  <span class="tv-doc__link-desc">src/components/tv.vue</span>
+                  <span class="tv-doc__link-desc">src/components/tv/tv.vue</span>
                 </span>
                 <span class="tv-doc__link-arrow" aria-hidden="true">↗</span>
               </a>
@@ -465,7 +463,7 @@ function topoOrder(deck):
                 <span class="tv-doc__link-icon" aria-hidden="true">🐑</span>
                 <span class="tv-doc__link-body">
                   <span class="tv-doc__link-title">羊了个羊组件源码</span>
-                  <span class="tv-doc__link-desc">src/components/SheepGame.vue</span>
+                  <span class="tv-doc__link-desc">src/components/games/SheepGame.vue</span>
                 </span>
                 <span class="tv-doc__link-arrow" aria-hidden="true">↗</span>
               </a>
@@ -473,7 +471,7 @@ function topoOrder(deck):
                 <span class="tv-doc__link-icon" aria-hidden="true">📺</span>
                 <span class="tv-doc__link-body">
                   <span class="tv-doc__link-title">小电视悬浮入口</span>
-                  <span class="tv-doc__link-desc">src/components/FloatingTv.vue</span>
+                  <span class="tv-doc__link-desc">src/components/tv/FloatingTv.vue</span>
                 </span>
                 <span class="tv-doc__link-arrow" aria-hidden="true">↗</span>
               </a>
@@ -481,18 +479,320 @@ function topoOrder(deck):
           </section>
           </template>
 
-          <!-- 其他频道：占位 -->
-          <template v-else>
-            <section class="tv-doc__block">
-              <h2 class="tv-doc__h2">一、敬请期待</h2>
-              <p class="tv-doc__p">
-                「{{ activeChannel.label }}」文档正在整理中，先去看看其他频道吧～
-              </p>
-              <div class="tv-doc__callout tv-doc__callout--info">
-                <span class="tv-doc__callout-icon" aria-hidden="true">📝</span>
-                <p>本频道内容尚未发布，可点击左侧「羊了个羊玩法与算法」查看完整示例文档。</p>
-              </div>
-            </section>
+          <!-- c7：我的小家玩法与算法 -->
+          <template v-else-if="activeId === 'c7'">
+          <section class="tv-doc__block">
+            <h2 class="tv-doc__h2">一、玩法说明</h2>
+            <p class="tv-doc__p">
+              「我的小家」是一款经典 Match-3 消消乐。棋盘上摆满水果方块，交换相邻两块使
+              <strong>横向或纵向连成 3 个及以上同色</strong> 即可消除；消除会连锁下落并补新块。
+              每关有步数上限与通关目标，在步数用尽前完成全部目标即获胜。
+            </p>
+            <ul class="tv-doc__list">
+              <li>
+                <span class="tv-doc__list-marker">✦</span>
+                <p><strong>交换</strong>：点击选中一格，再点相邻格进行交换；无效交换会弹回。</p>
+              </li>
+              <li>
+                <span class="tv-doc__list-marker">✦</span>
+                <p><strong>特殊棋子</strong>：4 连出火箭（清整行/列）、L/T 形出炸弹（炸 2×2）、5 连出彩虹球（清随机一色）。双击道具可直接触发。</p>
+              </li>
+              <li>
+                <span class="tv-doc__list-marker">✦</span>
+                <p><strong>障碍物</strong>：冰块盖在格子上需消除覆盖层；锁链锁住棋子不可移动；石头占格不可交换，靠相邻消除震碎。</p>
+              </li>
+              <li>
+                <span class="tv-doc__list-marker">✦</span>
+                <p><strong>通关</strong>：完成关卡全部目标（分数 / 收集颜色 / 清障碍）→ 获胜，按剩余步数评 1～3 星。</p>
+              </li>
+            </ul>
+            <div class="tv-doc__callout tv-doc__callout--info">
+              <span class="tv-doc__callout-icon" aria-hidden="true">💡</span>
+              <p>右下角悬浮「小房子」入口可随时打开。默认继续当前关；点 🗺️ 打开 100 关选关地图。进度保存在本机 localStorage。</p>
+            </div>
+          </section>
+
+          <section class="tv-doc__block">
+            <h2 class="tv-doc__h2">二、关卡与目标</h2>
+            <p class="tv-doc__p">
+              共 <strong>100 关</strong>：前 10 关手写精调（教学向），第 11～100 关由难度曲线程序化生成。
+              第一关永远解锁，通关后解锁下一关；星级只保留更好成绩。
+            </p>
+            <div class="tv-doc__table-wrap">
+              <table class="tv-doc__table">
+                <thead>
+                  <tr>
+                    <th>目标类型</th>
+                    <th>字段</th>
+                    <th>判定</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>score</td>
+                    <td>target</td>
+                    <td>累计分数 ≥ 目标分</td>
+                  </tr>
+                  <tr>
+                    <td>collect</td>
+                    <td>color + target</td>
+                    <td>消除指定颜色方块数 ≥ 目标</td>
+                  </tr>
+                  <tr>
+                    <td>clear</td>
+                    <td>blocker + target</td>
+                    <td>清除指定障碍（ice / rock / chain）层数归零次数 ≥ 目标</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="tv-doc__p">
+              星级规则：剩余步数 ≥ 总步数 40% → 3 星；≥ 15% → 2 星；否则 1 星。
+              存储 key：<code class="tv-doc__code">match3_progress</code> →
+              <code class="tv-doc__code">{ stars, currentLevel }</code>。
+            </p>
+          </section>
+
+          <section class="tv-doc__block">
+            <h2 class="tv-doc__h2">三、难度旋钮</h2>
+            <p class="tv-doc__p">
+              Match-3 难度不是线性的。按影响力从高到低：
+            </p>
+            <div class="tv-doc__table-wrap">
+              <table class="tv-doc__table">
+                <thead>
+                  <tr>
+                    <th>旋钮</th>
+                    <th>影响</th>
+                    <th>说明</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>颜色种类数</td>
+                    <td>★★★★★</td>
+                    <td>4→5 色凑三消概率断崖下降，最强杠杆</td>
+                  </tr>
+                  <tr>
+                    <td>目标 / 步数比</td>
+                    <td>★★★★★</td>
+                    <td>真正难度是「每步需完成多少量」，不是步数绝对值</td>
+                  </tr>
+                  <tr>
+                    <td>障碍物</td>
+                    <td>★★★★</td>
+                    <td>冰、石、链压缩可操作空间</td>
+                  </tr>
+                  <tr>
+                    <td>棋盘尺寸</td>
+                    <td>★★★</td>
+                    <td>7×7 → 8×8；越大组合多但收益递减</td>
+                  </tr>
+                  <tr>
+                    <td>特殊棋子</td>
+                    <td>★★★</td>
+                    <td>开启后玩家变强；教学关可关闭</td>
+                  </tr>
+                  <tr>
+                    <td>目标数量</td>
+                    <td>★★★</td>
+                    <td>1 个目标 → 2 个目标是乘法级提升</td>
+                  </tr>
+                  <tr>
+                    <td>洗牌保底</td>
+                    <td>★★</td>
+                    <td>无解自动洗牌降难度；后期可关闭加压</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="tv-doc__callout tv-doc__callout--info">
+              <span class="tv-doc__callout-icon" aria-hidden="true">⚠️</span>
+              <p>新手最常犯的错：只调步数。步数从 25 减到 15 不会让难度涨 66%，只会让人觉得「卡」。真正该调的是颜色数与目标量。</p>
+            </div>
+          </section>
+
+          <section class="tv-doc__block">
+            <h2 class="tv-doc__h2">四、难度曲线算法</h2>
+            <p class="tv-doc__p">
+              不用手写 200 关，也不纯随机（会跳变）。采用
+              <strong>分段模板 + 段内线性插值</strong>：每个 tier 定义区间终点与起止参数，
+              关卡 id 落在段内时按进度 <code class="tv-doc__code">t ∈ [0,1]</code> 插值。
+            </p>
+            <pre class="tv-doc__code-block"><code>const TIERS = [
+  { to: 10,  colors: 4, board: 7×7, moves: [32,26], goals: [score],            blockers: 0 },
+  { to: 25,  colors: 4, board: 7×7, moves: [28,22], goals: [score,collect],    blockers: 3 },
+  { to: 45,  colors: 5, board: 8×8, moves: [28,22], goals: [collect,clear],    blockers: 8 },
+  { to: 70,  colors: 5, board: 8×8, moves: [24,18], goals: [collect,clear],    blockers: 16 },
+  { to: 100, colors: 6, board: 8×8, moves: [24,18], goals: [collect,clear,score], blockers: 20 },
+]
+
+function generateLevel(id):
+    tier, t = locate(id)                 # t = 段内进度 0→1
+    moves = lerp(tier.moves[0], tier.moves[1], t)
+    # 关键公式：目标量 = 步数 × 每步压力
+    scoreTarget   = moves * lerp(40, 90, t)
+    collectTarget = moves * lerp(1.2, 2.0, t)
+    clearTarget   = lerp(6, 24, t)
+    blockers = buildBlockerLayout(≤25% 格子)
+    autoShuffle = id &lt; 60                # 后期取消保底</code></pre>
+            <p class="tv-doc__p">
+              障碍物用字符画布描述，便于肉眼校对：
+              <code class="tv-doc__code">.</code> 空地、
+              <code class="tv-doc__code">i/I</code> 单/双层冰、
+              <code class="tv-doc__code">r</code> 石头、
+              <code class="tv-doc__code">c</code> 锁链。
+              程序化布局时障碍总量不超过棋盘格子的 25%，避免堵死。
+            </p>
+          </section>
+
+          <section class="tv-doc__block">
+            <h2 class="tv-doc__h2">五、核心棋盘逻辑</h2>
+            <p class="tv-doc__p">
+              开局生成必须同时满足：<strong>不能已有三消</strong>，且
+              <strong>至少存在一步合法交换</strong>。否则会白送分或开局卡死。
+            </p>
+            <pre class="tv-doc__code-block"><code>function createBoard(cfg):
+    do:
+        for 每格:
+            随机颜色，避开「左侧/上方已有两连同色」
+            石头格不放棋子
+        while 仍无可行步: 洗牌（跳过特殊棋子与锁链格）
+    while !hasPossibleMove()
+
+function hasPossibleMove(grid):
+    遍历每个相邻对（右 / 下）
+    若任一方是特殊棋子 → 可动
+    否则试交换，检测是否产生 match，再换回
+    锁链格不可参与交换</code></pre>
+            <p class="tv-doc__p">
+              <strong>消除流水线</strong>：找连续 runs（横/竖 ≥3）→ 合并为 cluster →
+              按规则决定是否生成特殊棋子 → 展开特殊棋子连锁 → 计分与目标进度 →
+              播放动效 → 清除 → 重力下落补块 → 循环直到无 match。
+            </p>
+            <p class="tv-doc__p">
+              <strong>障碍损伤</strong>：消除格子上的冰直接掉层；相邻格的石头/锁链被「震碎」掉层；
+              石头消失后格子变为可落入空位。重力下落时石头格当作实心，棋子绕开。
+            </p>
+            <div class="tv-doc__callout tv-doc__callout--info">
+              <span class="tv-doc__callout-icon" aria-hidden="true">🎯</span>
+              <p>无解检测：每步结算后若无可移动交换，autoShuffle 开启则洗牌，否则直接判负（后期加压关）。</p>
+            </div>
+          </section>
+
+          <section class="tv-doc__block">
+            <h2 class="tv-doc__h2">六、难度模拟器</h2>
+            <p class="tv-doc__p">
+              手调系数容易翻车。开发期用贪心代理批量跑关卡，估通过率曲线：
+            </p>
+            <ul class="tv-doc__list">
+              <li>
+                <span class="tv-doc__list-marker">✦</span>
+                <p><strong>贪心玩家</strong>：每步选「能消最多格子」的合法交换，代表普通玩家水平。</p>
+              </li>
+              <li>
+                <span class="tv-doc__list-marker">✦</span>
+                <p><strong>随机玩家</strong>：随机合法交换，测下限通过率。</p>
+              </li>
+            </ul>
+            <div class="tv-doc__table-wrap">
+              <table class="tv-doc__table">
+                <thead>
+                  <tr>
+                    <th>贪心通过率</th>
+                    <th>定位</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td>&gt; 85%</td><td>送分关 / 教学关</td></tr>
+                  <tr><td>65% ~ 85%</td><td>简单</td></tr>
+                  <tr><td>45% ~ 65%</td><td>中等（大部分关卡应落在这里）</td></tr>
+                  <tr><td>30% ~ 45%</td><td>困难</td></tr>
+                  <tr><td>&lt; 25%</td><td>劝退，除非是卡点关</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="tv-doc__p">
+              命令：<code class="tv-doc__code">npm run match3:rate</code>
+              （可选参数：trials from to，例如
+              <code class="tv-doc__code">npx tsx scripts/match3-rate.ts 80 1 100</code>）。
+              输出 CSV 后肉眼检查是否单调、有无突然掉 20% 以上的尖刺。
+            </p>
+          </section>
+
+          <section class="tv-doc__block">
+            <h2 class="tv-doc__h2">七、模块结构</h2>
+            <div class="tv-doc__table-wrap">
+              <table class="tv-doc__table">
+                <thead>
+                  <tr>
+                    <th>路径</th>
+                    <th>职责</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>src/game/match3/levels.ts</td>
+                    <td>手写第 1～10 关配置</td>
+                  </tr>
+                  <tr>
+                    <td>src/game/match3/curve.ts</td>
+                    <td>TIERS 插值生成 11～100 关</td>
+                  </tr>
+                  <tr>
+                    <td>src/game/match3/blockers.ts</td>
+                    <td>字符画布解析与程序化障碍布局</td>
+                  </tr>
+                  <tr>
+                    <td>src/game/match3/rate.ts</td>
+                    <td>贪心/随机模拟与通过率统计</td>
+                  </tr>
+                  <tr>
+                    <td>src/composables/useMatch3Level.ts</td>
+                    <td>解锁、星级、currentLevel 持久化</td>
+                  </tr>
+                  <tr>
+                    <td>src/components/games/Match3Game.vue</td>
+                    <td>棋盘、消除、动效（视图层）</td>
+                  </tr>
+                  <tr>
+                    <td>src/components/tv/FloatingMatch3.vue</td>
+                    <td>悬浮入口 + 继续当前关 + 选关地图</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="tv-doc__block">
+            <h2 class="tv-doc__h2">八、相关链接</h2>
+            <div class="tv-doc__links">
+              <a class="tv-doc__link-card" tabindex="-1">
+                <span class="tv-doc__link-icon" aria-hidden="true">🏠</span>
+                <span class="tv-doc__link-body">
+                  <span class="tv-doc__link-title">我的小家组件源码</span>
+                  <span class="tv-doc__link-desc">src/components/games/Match3Game.vue</span>
+                </span>
+                <span class="tv-doc__link-arrow" aria-hidden="true">↗</span>
+              </a>
+              <a class="tv-doc__link-card" tabindex="-1">
+                <span class="tv-doc__link-icon" aria-hidden="true">📐</span>
+                <span class="tv-doc__link-body">
+                  <span class="tv-doc__link-title">关卡与难度曲线</span>
+                  <span class="tv-doc__link-desc">src/game/match3/</span>
+                </span>
+                <span class="tv-doc__link-arrow" aria-hidden="true">↗</span>
+              </a>
+              <a class="tv-doc__link-card" tabindex="-1">
+                <span class="tv-doc__link-icon" aria-hidden="true">🧪</span>
+                <span class="tv-doc__link-body">
+                  <span class="tv-doc__link-title">难度模拟脚本</span>
+                  <span class="tv-doc__link-desc">npm run match3:rate</span>
+                </span>
+                <span class="tv-doc__link-arrow" aria-hidden="true">↗</span>
+              </a>
+            </div>
+          </section>
           </template>
 
           <div class="tv-doc__divider" aria-hidden="true">
@@ -503,6 +803,7 @@ function topoOrder(deck):
     </div>
 
     <FloatingTv />
+    <FloatingMatch3 />
   </div>
 </template>
 
