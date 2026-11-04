@@ -2,14 +2,22 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import {
   ALL_TYPES,
+  addColBand,
+  addRowBand,
   blockersToGrid,
+  buildStaticFusionWave,
   calcStars,
+  classifyFusion,
+  fusionLabel,
   getLevel,
   palette,
   parseBlockers,
   type BlockerCell,
+  type FusionFx,
+  type FusionKind,
   type Goal,
   type LevelConfig,
+  type SpecialKind,
   type TileType,
 } from '@/game/match3'
 
@@ -145,26 +153,36 @@ function tickFx() {
   rafId = pool.length ? requestAnimationFrame(tickFx) : 0
 }
 
-const dashes = ref<{ id: number; dir: Dir; axis: number }[]>([])
-const shocks = ref<{ id: number; x: number; y: number; color: string }[]>([])
+const dashes = ref<{ id: number; dir: Dir; axis: number; thick?: boolean }[]>([])
+const shocks = ref<{ id: number; x: number; y: number; color: string; scale?: number }[]>([])
 const vortex = ref<{ id: number; color: string } | null>(null)
+const fusionFlash = ref<{ id: number; x: number; y: number; kind: FusionKind } | null>(null)
 let dashSeq = 1
 let shockSeq = 1
 let vortexSeq = 1
+let flashSeq = 1
+
+function fireDash(dir: Dir, axis: number, thick = false) {
+  const id = dashSeq++
+  dashes.value.push({ id, dir, axis, thick })
+  setTimeout(() => { dashes.value = dashes.value.filter((d) => d.id !== id) }, thick ? 620 : 520)
+}
+
+function fireShockAt(r: number, c: number, color = '#ffb347', scale = 1) {
+  const id = shockSeq++
+  shocks.value.push({ id, x: c * CELL, y: r * CELL, color, scale })
+  setTimeout(() => { shocks.value = shocks.value.filter((s) => s.id !== id) }, 560)
+}
 
 function fireRocket(t: Tile) {
-  const id = dashSeq++
   const dir = (t.dir ?? 'H') as Dir
-  dashes.value.push({ id, dir, axis: dir === 'H' ? t.row : t.col })
-  setTimeout(() => { dashes.value = dashes.value.filter((d) => d.id !== id) }, 520)
+  fireDash(dir, dir === 'H' ? t.row : t.col)
   if (dir === 'H') for (let c = 0; c < COLS.value; c++) spawnParticles(t.row, c, t.type)
   else for (let r = 0; r < ROWS.value; r++) spawnParticles(r, t.col, t.type)
 }
 
 function fireBomb(t: Tile) {
-  const id = shockSeq++
-  shocks.value.push({ id, x: t.col * CELL, y: t.row * CELL, color: '#ffb347' })
-  setTimeout(() => { shocks.value = shocks.value.filter((s) => s.id !== id) }, 560)
+  fireShockAt(t.row, t.col)
   for (let i = 0; i < 2; i++) spawnParticles(t.row, t.col, t.type)
 }
 
@@ -174,6 +192,72 @@ async function fireColorBall(t: Tile) {
   vortex.value = { id, color: typeColor[t.ballTarget] }
   await sleep(520)
   if (vortex.value?.id === id) vortex.value = null
+}
+
+async function playFusionMergeFX(r: number, c: number, kind: FusionKind) {
+  const id = flashSeq++
+  fusionFlash.value = { id, x: c * CELL + TILE / 2, y: r * CELL + TILE / 2, kind }
+  fireShockAt(r, c, '#ffe08a', 1.35)
+  spawnParticles(r, c, '🍋')
+  spawnParticles(r, c, '🍊')
+  await sleep(280)
+  if (fusionFlash.value?.id === id) fusionFlash.value = null
+}
+
+async function playFusionWaveFX(
+  fx: FusionFx,
+  opts: { rows?: number[]; cols?: number[]; center?: { r: number; c: number }; color?: TileType },
+) {
+  const center = opts.center ?? { r: 0, c: 0 }
+  if (fx === 'cross') {
+    for (const rr of opts.rows ?? [center.r]) fireDash('H', rr)
+    for (const cc of opts.cols ?? [center.c]) fireDash('V', cc)
+    await sleep(180)
+    return
+  }
+  if (fx === 'thickCross') {
+    for (const rr of opts.rows ?? []) fireDash('H', rr, true)
+    for (const cc of opts.cols ?? []) fireDash('V', cc, true)
+    fireShockAt(center.r, center.c, '#ffd27a', 1.6)
+    await sleep(220)
+    return
+  }
+  if (fx === 'blast3') {
+    fireShockAt(center.r, center.c, '#ff9f4a', 1.8)
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        const rr = center.r + dr
+        const cc = center.c + dc
+        if (rr >= 0 && rr < ROWS.value && cc >= 0 && cc < COLS.value) spawnParticles(rr, cc, '🍊')
+      }
+    }
+    await sleep(200)
+    return
+  }
+  if (fx === 'clearAll') {
+    const id = vortexSeq++
+    vortex.value = { id, color: '#ff8a6a' }
+    fireShockAt(center.r, center.c, '#ff6b5a', 2.2)
+    await sleep(480)
+    if (vortex.value?.id === id) vortex.value = null
+    return
+  }
+  if (fx === 'halfRows') {
+    for (const rr of opts.rows ?? []) fireDash('H', rr, true)
+    await sleep(200)
+    return
+  }
+  if (fx === 'halfCols') {
+    for (const cc of opts.cols ?? []) fireDash('V', cc, true)
+    await sleep(200)
+    return
+  }
+  if (fx === 'color' && opts.color) {
+    const id = vortexSeq++
+    vortex.value = { id, color: typeColor[opts.color] }
+    await sleep(420)
+    if (vortex.value?.id === id) vortex.value = null
+  }
 }
 
 async function playSpecialFX(cells: Set<string>) {
@@ -643,6 +727,98 @@ async function afterMoveCleanup() {
   await finishIfNeeded()
 }
 
+async function clearCellsWave(
+  cells: Set<string>,
+  fx: FusionFx,
+  fxOpts: { rows?: number[]; cols?: number[]; center?: { r: number; c: number }; color?: TileType } = {},
+  scoreMul = 120,
+) {
+  const clearedTiles: Tile[] = []
+  for (const k of cells) {
+    const [r, c] = parseKey(k)
+    const o = tileAt(r, c)
+    if (o && !o.leaving) clearedTiles.push(o)
+  }
+  score.value += Math.max(1, cells.size) * scoreMul * Math.max(1, combo.value)
+  onCellsCleared(cells, clearedTiles)
+  await playFusionWaveFX(fx, fxOpts)
+  for (const k of cells) {
+    const [r, c] = parseKey(k)
+    markClear(r, c)
+  }
+  await sleep(300)
+  sweepLeaving()
+  await applyGravity()
+  await sleep(340)
+}
+
+async function runFusion(a: Tile, b: Tile) {
+  const sa = a.special as SpecialKind
+  const sb = b.special as SpecialKind
+  const kind = classifyFusion(sa, sb)
+  const fr = a.row
+  const fc = a.col
+  combo.value = 1
+  pushFloat(comboLabel(combo.value), fusionLabel(kind))
+  await playFusionMergeFX(fr, fc, kind)
+
+  const blocked = (r: number, c: number) => isRock(r, c)
+
+  if (kind === 'color-rocket') {
+    const rowCells = new Set<string>()
+    rowCells.add(key(a.row, a.col))
+    rowCells.add(key(b.row, b.col))
+    const rowList = addRowBand(rowCells, fr, ROWS.value, COLS.value, blocked)
+    await clearCellsWave(rowCells, 'halfRows', { rows: rowList, center: { r: fr, c: fc } }, 100)
+
+    const colCells = new Set<string>()
+    const colList = addColBand(colCells, fc, ROWS.value, COLS.value, blocked)
+    if (colCells.size) {
+      combo.value++
+      pushFloat(comboLabel(combo.value), '纵向扫荡!')
+      await clearCellsWave(colCells, 'halfCols', { cols: colList, center: { r: fr, c: fc } }, 100)
+    }
+    await resolve()
+    return
+  }
+
+  if (kind === 'color-color') {
+    // 先吃掉两颗彩虹（短促汇聚，再逐色扫）
+    const seed = new Set<string>([key(a.row, a.col), key(b.row, b.col)])
+    await clearCellsWave(seed, 'blast3', { center: { r: fr, c: fc } }, 80)
+
+    const order = TYPES.value.filter((type) =>
+      tiles.value.some((t) => !t.leaving && !t.special && t.type === type),
+    )
+    for (const color of order) {
+      const cells = new Set<string>()
+      for (let r = 0; r < ROWS.value; r++) {
+        for (let c = 0; c < COLS.value; c++) {
+          if (blocked(r, c)) continue
+          const t = tileAt(r, c)
+          if (t && !t.leaving && !t.special && t.type === color) cells.add(key(r, c))
+        }
+      }
+      if (!cells.size) continue
+      combo.value++
+      pushFloat(comboLabel(combo.value), `${color} 消除!`)
+      await clearCellsWave(cells, 'color', { color, center: { r: fr, c: fc } }, 90)
+    }
+    await resolve()
+    return
+  }
+
+  const wave = buildStaticFusionWave(kind, fr, fc, ROWS.value, COLS.value, blocked)
+  wave.cells.push(key(b.row, b.col))
+  const cells = new Set(wave.cells)
+  await clearCellsWave(cells, wave.fx, {
+    rows: wave.rows,
+    cols: wave.cols,
+    center: wave.center ?? { r: fr, c: fc },
+  })
+  await resolve()
+}
+
 async function trySwap(a: Tile, b: Tile) {
   if (busy.value || phase.value !== 'playing') return
   if (Math.abs(a.row - b.row) + Math.abs(a.col - b.col) !== 1) return
@@ -651,6 +827,18 @@ async function trySwap(a: Tile, b: Tile) {
     return
   }
   busy.value = true
+
+  // 两个特殊道具互换 → 融合（无需三连）
+  if (a.special && b.special) {
+    swapInGrid(a, b)
+    await nextTick()
+    moves.value--
+    await runFusion(a, b)
+    await afterMoveCleanup()
+    busy.value = false
+    return
+  }
+
   swapInGrid(a, b)
   await nextTick()
   const hasMatch = findRuns().length > 0
@@ -736,6 +924,7 @@ function start() {
   dashes.value = []
   shocks.value = []
   vortex.value = null
+  fusionFlash.value = null
   pool.length = 0
   if (fxCtx && fxCanvas.value) fxCtx.clearRect(0, 0, fxCanvas.value.width, fxCanvas.value.height)
   phase.value = 'playing'
@@ -842,7 +1031,7 @@ onUnmounted(() => {
           v-for="d in dashes"
           :key="d.id"
           class="m3__dash"
-          :class="`is-${d.dir}`"
+          :class="[`is-${d.dir}`, { 'is-thick': d.thick }]"
           :style="d.dir === 'H' ? { top: d.axis * CELL + 'px' } : { left: d.axis * CELL + 'px' }"
         />
       </div>
@@ -852,9 +1041,16 @@ onUnmounted(() => {
           v-for="s in shocks"
           :key="s.id"
           class="m3__shock"
-          :style="{ left: s.x + 'px', top: s.y + 'px', '--sc': s.color }"
+          :style="{ left: s.x + 'px', top: s.y + 'px', '--sc': s.color, '--ss': s.scale ?? 1 }"
         />
       </div>
+
+      <div
+        v-if="fusionFlash"
+        class="m3__fusion-flash"
+        :class="`is-${fusionFlash.kind}`"
+        :style="{ left: fusionFlash.x + 'px', top: fusionFlash.y + 'px' }"
+      />
 
       <div v-if="vortex" class="m3__vortex" :style="{ '--vc': vortex.color }">
         <span class="m3__vortex-ring" />
@@ -880,7 +1076,7 @@ onUnmounted(() => {
       </Transition>
     </div>
 
-    <p class="m3__tip">交换相邻方块完成目标；4 连出火箭，L/T 出炸弹，5 连出彩虹球。冰块需消除覆盖，锁链限制移动，石头靠相邻消除震碎。</p>
+    <p class="m3__tip">交换相邻方块完成目标；4 连出火箭，L/T 出炸弹，5 连出彩虹球。两个特殊道具互换可融合。冰块需消除覆盖，锁链限制移动，石头靠相邻消除震碎。</p>
   </div>
 </template>
 
@@ -1197,6 +1393,20 @@ onUnmounted(() => {
   box-shadow: 0 0 12px rgba(255, 220, 140, 0.8);
   animation: m3-dash-v 0.5s cubic-bezier(0.3, 0.7, 0.4, 1) forwards;
 }
+.m3__dash.is-H.is-thick {
+  height: 36px;
+  margin-top: -2px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 180, 90, 0.25) 15%, rgba(255, 245, 200, 1) 50%, rgba(255, 180, 90, 0.25) 85%, transparent 100%);
+  box-shadow: 0 0 18px rgba(255, 190, 100, 0.95);
+  animation-duration: 0.58s;
+}
+.m3__dash.is-V.is-thick {
+  width: 36px;
+  margin-left: -2px;
+  background: linear-gradient(180deg, transparent 0%, rgba(255, 180, 90, 0.25) 15%, rgba(255, 245, 200, 1) 50%, rgba(255, 180, 90, 0.25) 85%, transparent 100%);
+  box-shadow: 0 0 18px rgba(255, 190, 100, 0.95);
+  animation-duration: 0.58s;
+}
 @keyframes m3-dash-h {
   0% { transform: translateX(-60%); opacity: 0; }
   20% { opacity: 1; }
@@ -1232,8 +1442,35 @@ onUnmounted(() => {
 }
 .m3__shock::after { animation-delay: 0.08s; }
 @keyframes m3-shock {
-  0% { transform: scale(0.4); opacity: 1; }
-  100% { transform: scale(3.4); opacity: 0; }
+  0% { transform: scale(calc(0.4 * var(--ss, 1))); opacity: 1; }
+  100% { transform: scale(calc(3.4 * var(--ss, 1))); opacity: 0; }
+}
+
+.m3__fusion-flash {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 35;
+  background: radial-gradient(circle, #fff 0%, #ffe08a 40%, transparent 72%);
+  box-shadow: 0 0 22px rgba(255, 220, 120, 0.9);
+  animation: m3-fusion-flash 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.m3__fusion-flash.is-color-bomb,
+.m3__fusion-flash.is-color-color {
+  background: radial-gradient(circle, #fff 0%, #ff8a6a 35%, #b27aef 70%, transparent 78%);
+  box-shadow: 0 0 28px rgba(178, 122, 239, 0.85);
+}
+.m3__fusion-flash.is-bomb-rocket,
+.m3__fusion-flash.is-rocket-rocket {
+  background: radial-gradient(circle, #fff 0%, #ffd84a 45%, transparent 75%);
+}
+@keyframes m3-fusion-flash {
+  0% { transform: scale(0.4); opacity: 0.4; }
+  45% { transform: scale(2.4); opacity: 1; }
+  100% { transform: scale(3.2); opacity: 0; }
 }
 
 .m3__vortex {

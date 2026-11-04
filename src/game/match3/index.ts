@@ -5,6 +5,7 @@ import { TOTAL_LEVELS } from './types'
 
 export * from './types'
 export * from './blockers'
+export * from './fusion'
 export { LEVELS } from './levels'
 export { generateLevel } from './curve'
 
