@@ -34,7 +34,7 @@ const showHint = computed(() => !hasInteracted.value && !open.value && !dragging
 const containerStyle = computed(() => ({
   transform: `translate3d(${pos.value.x}px, ${pos.value.y}px, 0)`,
 }))
-const panelWidth = computed(() => Math.min(360, vw.value - 32))
+const panelWidth = computed(() => Math.min(440, vw.value - 32))
 const spaceAbove = computed(() => pos.value.y - MARGIN)
 const spaceBelow = computed(() => vh.value - pos.value.y - SIZE - MARGIN)
 
@@ -301,7 +301,7 @@ onBeforeUnmount(() => window.removeEventListener('resize', onResize))
   position: absolute;
   left: 0;
   bottom: calc(100% + 12px);
-  width: 360px;
+  width: 440px;
   max-height: 620px;
   display: flex;
   flex-direction: column;
@@ -445,7 +445,7 @@ onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 .fm3.placement-right .fm3-panel-leave-to { transform: translateX(8px) scale(0.96); }
 
 @media (max-width: 480px) {
-  .fm3__panel { width: min(360px, calc(100vw - 32px)); }
+  .fm3__panel { width: min(440px, calc(100vw - 32px)); }
 }
 @media (prefers-reduced-motion: reduce) {
   .fm3__btn.is-hint,

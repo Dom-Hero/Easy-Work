@@ -75,6 +75,95 @@ const phase = ref<'idle' | 'playing' | 'won' | 'lost'>('idle')
 const busy = ref(false)
 const selected = ref<{ row: number; col: number } | null>(null)
 const winStars = ref(0)
+/** 对局中实时星级：初始三星，随剩余步数下降 */
+const liveStars = computed(() => calcStars(moves.value, level.value.moves))
+const starFruits = [
+  { star: 3 as const, fruit: '🍎', leaf: '🍃', color: '#ff6b5a' },
+  { star: 2 as const, fruit: '🍊', leaf: '🌿', color: '#ff9f4a' },
+  { star: 1 as const, fruit: '🍋', leaf: '☘️', color: '#ffd84a' },
+] as const
+/** 藤蔓着色用的视觉星级（降星时滞后做下滑过渡） */
+const visualStars = ref(3)
+/** 顶部灰色侵占：0 满绿 → 约 0.66 只剩一星 */
+const vineDrainRatio = computed(() => (3 - visualStars.value) / 3)
+const vineDrainPct = computed(() => `${vineDrainRatio.value * 100}%`)
+const droppingStar = ref<number | null>(null)
+const vineDraining = ref(false)
+interface FruitShard {
+  id: number
+  star: number
+  color: string
+  emoji: string
+  tx: number
+  ty: number
+  rot: number
+  size: number
+  delay: number
+}
+const fruitShards = ref<FruitShard[]>([])
+let shardSeq = 1
+let dropAnimLock = false
+let dropQueue: number[] = []
+
+function spawnFruitShards(star: number) {
+  const item = starFruits.find((f) => f.star === star)
+  if (!item) return
+  const batch: FruitShard[] = []
+  for (let i = 0; i < 10; i++) {
+    const ang = (Math.PI * 2 * i) / 10 + (Math.random() - 0.5) * 0.5
+    const dist = 18 + Math.random() * 28
+    batch.push({
+      id: shardSeq++,
+      star,
+      color: item.color,
+      emoji: item.fruit,
+      tx: Math.cos(ang) * dist,
+      ty: Math.sin(ang) * dist + 8 + Math.random() * 14,
+      rot: (Math.random() - 0.5) * 420,
+      size: 0.35 + Math.random() * 0.45,
+      delay: Math.random() * 60,
+    })
+  }
+  fruitShards.value = [...fruitShards.value, ...batch]
+  window.setTimeout(() => {
+    const ids = new Set(batch.map((s) => s.id))
+    fruitShards.value = fruitShards.value.filter((s) => !ids.has(s.id))
+  }, 780)
+}
+
+async function playStarDrop(star: number) {
+  droppingStar.value = star
+  vineDraining.value = true
+  spawnFruitShards(star)
+  await sleep(120)
+  visualStars.value = Math.max(1, star - 1)
+  await sleep(620)
+  droppingStar.value = null
+  vineDraining.value = false
+}
+
+async function flushStarDrops() {
+  if (dropAnimLock) return
+  dropAnimLock = true
+  while (dropQueue.length) {
+    const star = dropQueue.shift()!
+    await playStarDrop(star)
+  }
+  dropAnimLock = false
+}
+
+watch(liveStars, (next, prev) => {
+  if (prev == null) {
+    visualStars.value = next
+    return
+  }
+  if (next >= prev) {
+    visualStars.value = next
+    return
+  }
+  for (let s = prev; s > next; s--) dropQueue.push(s)
+  flushStarDrops()
+})
 const goalProgress = ref<{ score: number; collect: Record<number, number>; clear: Record<string, number> }>({
   score: 0,
   collect: {},
@@ -917,6 +1006,12 @@ function start() {
   score.value = 0
   combo.value = 0
   winStars.value = 0
+  visualStars.value = 3
+  droppingStar.value = null
+  vineDraining.value = false
+  fruitShards.value = []
+  dropQueue = []
+  dropAnimLock = false
   goalProgress.value = { score: 0, collect: {}, clear: {} }
   selected.value = null
   floats.value = []
@@ -943,6 +1038,8 @@ onMounted(() => {
 onUnmounted(() => {
   if (rafId) cancelAnimationFrame(rafId)
   rafId = 0
+  dropQueue = []
+  fruitShards.value = []
 })
 </script>
 
@@ -967,113 +1064,186 @@ onUnmounted(() => {
       <button type="button" class="m3__restart" @click="start">重开</button>
     </div>
 
-    <div class="m3__board" :style="{ width: boardW + 'px', height: boardH + 'px' }">
-      <!-- 障碍物层：石头占格；冰/锁链叠在格子上 -->
-      <div
-        v-for="b in blockerList"
-        :key="`b-${b.row}-${b.col}-${b.type}`"
-        class="m3__blocker"
-        :class="[`is-${b.type}`, { 'is-thick': b.layers > 1 }]"
-        :style="{ transform: `translate(${b.col * CELL}px, ${b.row * CELL}px)` }"
-      >
-        <span v-if="b.type === 'ice'">❄️</span>
-        <span v-else-if="b.type === 'rock'">🪨</span>
-        <span v-else>🔗</span>
-      </div>
+    <div class="m3__play">
+      <div class="m3__board" :style="{ width: boardW + 'px', height: boardH + 'px' }">
+        <!-- 障碍物层：石头占格；冰/锁链叠在格子上 -->
+        <div
+          v-for="b in blockerList"
+          :key="`b-${b.row}-${b.col}-${b.type}`"
+          class="m3__blocker"
+          :class="[`is-${b.type}`, { 'is-thick': b.layers > 1 }]"
+          :style="{ transform: `translate(${b.col * CELL}px, ${b.row * CELL}px)` }"
+        >
+          <span v-if="b.type === 'ice'">❄️</span>
+          <span v-else-if="b.type === 'rock'">🪨</span>
+          <span v-else>🔗</span>
+        </div>
 
-      <button
-        v-for="t in tiles"
-        :key="t.id"
-        type="button"
-        class="m3__tile"
-        :class="[
-          `m3__tile--${t.type}`,
-          {
-            'is-selected': selected && selected.row === t.row && selected.col === t.col,
-            'is-leaving': t.leaving,
-            'is-rocket': t.special === 'rocket',
-            'is-bomb': t.special === 'bomb',
-            'is-colorball': t.special === 'colorBall',
-            'is-chained': isChained(t.row, t.col),
-          },
-        ]"
-        :style="{ transform: `translate(${t.col * CELL}px, ${t.ry * CELL}px)` }"
-        @click="onTileClick(t)"
-        @dblclick="onTileDblClick(t)"
-      >
-        <span class="m3__tile-inner" :class="{ 'is-leaving': t.leaving, 'is-born': t.born }">
-          <span class="m3__tile-face">
-            <template v-if="t.special === 'rocket'"><span class="m3__rocket" :class="`is-${t.dir}`">🚀</span></template>
-            <template v-else-if="t.special === 'bomb'">💣</template>
-            <template v-else-if="t.special === 'colorBall'">🌈</template>
-            <template v-else>{{ t.type }}</template>
+        <button
+          v-for="t in tiles"
+          :key="t.id"
+          type="button"
+          class="m3__tile"
+          :class="[
+            `m3__tile--${t.type}`,
+            {
+              'is-selected': selected && selected.row === t.row && selected.col === t.col,
+              'is-leaving': t.leaving,
+              'is-rocket': t.special === 'rocket',
+              'is-bomb': t.special === 'bomb',
+              'is-colorball': t.special === 'colorBall',
+              'is-chained': isChained(t.row, t.col),
+            },
+          ]"
+          :style="{ transform: `translate(${t.col * CELL}px, ${t.ry * CELL}px)` }"
+          @click="onTileClick(t)"
+          @dblclick="onTileDblClick(t)"
+        >
+          <span class="m3__tile-inner" :class="{ 'is-leaving': t.leaving, 'is-born': t.born }">
+            <span class="m3__tile-face">
+              <template v-if="t.special === 'rocket'"><span class="m3__rocket" :class="`is-${t.dir}`">🚀</span></template>
+              <template v-else-if="t.special === 'bomb'">💣</template>
+              <template v-else-if="t.special === 'colorBall'">🌈</template>
+              <template v-else>{{ t.type }}</template>
+            </span>
           </span>
-        </span>
-      </button>
+        </button>
 
-      <div class="m3__bursts">
-        <span
-          v-for="b in bursts"
-          :key="b.id"
-          class="m3__burst"
-          :style="{ left: b.x + 'px', top: b.y + 'px', '--bc': b.color }"
-        />
-      </div>
-
-      <canvas
-        ref="fxCanvas"
-        class="m3__fx"
-        :style="{ width: boardW + 'px', height: boardH + 'px' }"
-      />
-
-      <div class="m3__dashes">
-        <span
-          v-for="d in dashes"
-          :key="d.id"
-          class="m3__dash"
-          :class="[`is-${d.dir}`, { 'is-thick': d.thick }]"
-          :style="d.dir === 'H' ? { top: d.axis * CELL + 'px' } : { left: d.axis * CELL + 'px' }"
-        />
-      </div>
-
-      <div class="m3__shocks">
-        <span
-          v-for="s in shocks"
-          :key="s.id"
-          class="m3__shock"
-          :style="{ left: s.x + 'px', top: s.y + 'px', '--sc': s.color, '--ss': s.scale ?? 1 }"
-        />
-      </div>
-
-      <div
-        v-if="fusionFlash"
-        class="m3__fusion-flash"
-        :class="`is-${fusionFlash.kind}`"
-        :style="{ left: fusionFlash.x + 'px', top: fusionFlash.y + 'px' }"
-      />
-
-      <div v-if="vortex" class="m3__vortex" :style="{ '--vc': vortex.color }">
-        <span class="m3__vortex-ring" />
-        <span class="m3__vortex-ring" />
-        <span class="m3__vortex-core" />
-      </div>
-
-      <Transition-group name="m3-float" tag="div" class="m3__floats">
-        <div v-for="f in floats" :key="f.id" class="m3__float">
-          <span class="m3__float-text">{{ f.text }}</span>
-          <span v-if="f.sub" class="m3__float-sub">{{ f.sub }}</span>
+        <div class="m3__bursts">
+          <span
+            v-for="b in bursts"
+            :key="b.id"
+            class="m3__burst"
+            :style="{ left: b.x + 'px', top: b.y + 'px', '--bc': b.color }"
+          />
         </div>
-      </Transition-group>
 
-      <Transition name="m3-result">
-        <div v-if="phase !== 'playing' && phase !== 'idle'" class="m3__overlay">
-          <p class="m3__overlay-title">
-            {{ phase === 'won' ? `🎉 通关！${'⭐'.repeat(winStars)}` : '💦 步数用尽' }}
-          </p>
-          <p class="m3__overlay-score">得分 {{ score }}</p>
-          <button type="button" class="m3__restart" @click="start">再来一局</button>
+        <canvas
+          ref="fxCanvas"
+          class="m3__fx"
+          :style="{ width: boardW + 'px', height: boardH + 'px' }"
+        />
+
+        <div class="m3__dashes">
+          <span
+            v-for="d in dashes"
+            :key="d.id"
+            class="m3__dash"
+            :class="[`is-${d.dir}`, { 'is-thick': d.thick }]"
+            :style="d.dir === 'H' ? { top: d.axis * CELL + 'px' } : { left: d.axis * CELL + 'px' }"
+          />
         </div>
-      </Transition>
+
+        <div class="m3__shocks">
+          <span
+            v-for="s in shocks"
+            :key="s.id"
+            class="m3__shock"
+            :style="{ left: s.x + 'px', top: s.y + 'px', '--sc': s.color, '--ss': s.scale ?? 1 }"
+          />
+        </div>
+
+        <div
+          v-if="fusionFlash"
+          class="m3__fusion-flash"
+          :class="`is-${fusionFlash.kind}`"
+          :style="{ left: fusionFlash.x + 'px', top: fusionFlash.y + 'px' }"
+        />
+
+        <div v-if="vortex" class="m3__vortex" :style="{ '--vc': vortex.color }">
+          <span class="m3__vortex-ring" />
+          <span class="m3__vortex-ring" />
+          <span class="m3__vortex-core" />
+        </div>
+
+        <Transition-group name="m3-float" tag="div" class="m3__floats">
+          <div v-for="f in floats" :key="f.id" class="m3__float">
+            <span class="m3__float-text">{{ f.text }}</span>
+            <span v-if="f.sub" class="m3__float-sub">{{ f.sub }}</span>
+          </div>
+        </Transition-group>
+
+        <Transition name="m3-result">
+          <div v-if="phase !== 'playing' && phase !== 'idle'" class="m3__overlay">
+            <p class="m3__overlay-title">
+              {{ phase === 'won' ? `🎉 通关！${'⭐'.repeat(winStars)}` : '💦 步数用尽' }}
+            </p>
+            <p class="m3__overlay-score">得分 {{ score }}</p>
+            <button type="button" class="m3__restart" @click="start">再来一局</button>
+          </div>
+        </Transition>
+      </div>
+
+      <aside class="m3__side" aria-label="分数与星级">
+        <div class="m3__score-panel">
+          <span class="m3__score-label">分数</span>
+          <span class="m3__score-value">{{ score }}</span>
+        </div>
+        <div
+          class="m3__vine"
+          :class="{ 'is-draining': vineDraining }"
+          :style="{
+            minHeight: Math.max(160, boardH - 56) + 'px',
+            '--drain': vineDrainPct,
+            '--drain-n': String(vineDrainRatio),
+            '--life': String(visualStars / 3),
+          }"
+        >
+          <svg class="m3__vine-svg" viewBox="0 0 72 220" preserveAspectRatio="none" aria-hidden="true">
+            <path
+              class="m3__vine-path m3__vine-path--base"
+              pathLength="100"
+              d="M36 212
+                 C 18 190, 54 172, 34 148
+                 C 12 122, 58 104, 38 78
+                 C 16 52, 56 36, 36 14
+                 C 30 6, 36 4, 36 4"
+            />
+            <path
+              class="m3__vine-path m3__vine-path--life"
+              pathLength="100"
+              :style="{ strokeDasharray: `${(visualStars / 3) * 100} 100` }"
+              d="M36 212
+                 C 18 190, 54 172, 34 148
+                 C 12 122, 58 104, 38 78
+                 C 16 52, 56 36, 36 14
+                 C 30 6, 36 4, 36 4"
+            />
+          </svg>
+          <div v-if="vineDraining" class="m3__vine-drain-wave" aria-hidden="true" />
+          <div
+            v-for="(item, i) in starFruits"
+            :key="item.star"
+            class="m3__vine-node"
+            :class="{
+              'is-lit': visualStars >= item.star && droppingStar !== item.star,
+              'is-dim': visualStars < item.star,
+              'is-dropping': droppingStar === item.star,
+              [`is-slot-${i}`]: true,
+            }"
+          >
+            <span class="m3__vine-twig" aria-hidden="true" />
+            <span class="m3__vine-leaf" aria-hidden="true">{{ item.leaf }}</span>
+            <span class="m3__vine-fruit" :title="`${item.star} 星`">{{ item.fruit }}</span>
+            <span
+              v-for="p in fruitShards.filter((s) => s.star === item.star)"
+              :key="p.id"
+              class="m3__fruit-shard"
+              :style="{
+                '--tx': p.tx + 'px',
+                '--ty': p.ty + 'px',
+                '--rot': p.rot + 'deg',
+                '--sz': String(p.size),
+                '--sc': p.color,
+                animationDelay: p.delay + 'ms',
+              }"
+            >
+              <i class="m3__fruit-shard-bit" />
+              <i class="m3__fruit-shard-bit is-emoji">{{ p.emoji }}</i>
+            </span>
+          </div>
+        </div>
+      </aside>
     </div>
 
     <p class="m3__tip">交换相邻方块完成目标；4 连出火箭，L/T 出炸弹，5 连出彩虹球。两个特殊道具互换可融合。冰块需消除覆盖，锁链限制移动，石头靠相邻消除震碎。</p>
@@ -1157,6 +1327,272 @@ onUnmounted(() => {
   font-size: 11px;
   color: var(--clay-muted-soft, #9a9a9a);
 }
+.m3__play {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  justify-content: center;
+}
+.m3__side {
+  width: 78px;
+  min-width: 78px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding-top: 2px;
+}
+.m3__score-panel {
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 5px 7px;
+  border-radius: 12px;
+  border: 1.5px solid #2c6b45;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.35), transparent 55%),
+    linear-gradient(180deg, #e8f6df 0%, #c8e8b0 100%);
+  box-shadow: 0 2px 0 #2c6b45;
+}
+.m3__score-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #2c6b45;
+}
+.m3__score-value {
+  display: block;
+  width: 100%;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.2;
+  color: #1a3d28;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  white-space: normal;
+  overflow: visible;
+  word-break: break-all;
+}
+.m3__vine {
+  --drain: 0%;
+  --drain-n: 0;
+  --life: 1;
+  position: relative;
+  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+  align-items: center;
+  padding: 12px 0 8px;
+  border-radius: 16px;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(160, 160, 160, 0.18) 0%,
+      rgba(160, 160, 160, 0.18) var(--drain),
+      rgba(210, 235, 180, 0.42) var(--drain),
+      rgba(180, 220, 150, 0.18) 100%
+    );
+  border: 1.5px solid rgba(44, 107, 69, 0.35);
+  overflow: visible;
+  transition: background 0.7s cubic-bezier(0.4, 0.1, 0.45, 1), border-color 0.7s ease;
+}
+.m3__vine.is-draining {
+  border-color: rgba(120, 120, 120, 0.45);
+}
+.m3__vine-svg {
+  position: absolute;
+  inset: 4px 2px 4px 2px;
+  width: calc(100% - 4px);
+  height: calc(100% - 8px);
+  overflow: visible;
+  pointer-events: none;
+  z-index: 0;
+}
+.m3__vine-path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.m3__vine-path--base {
+  stroke: #9a9a9a;
+  stroke-width: 7.5;
+  opacity: 0.78;
+}
+.m3__vine-path--life {
+  stroke: #4eaa5f;
+  stroke-width: 7.2;
+  filter: drop-shadow(0 0 1px rgba(70, 160, 80, 0.35));
+  transition: stroke-dasharray 0.7s cubic-bezier(0.4, 0.1, 0.45, 1), stroke 0.55s ease;
+}
+.m3__vine.is-draining .m3__vine-path--life {
+  stroke: #6bb85a;
+}
+.m3__vine-drain-wave {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  height: 26px;
+  top: calc(8px + (100% - 16px) * var(--drain-n));
+  margin-top: -13px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(200, 255, 150, 0.95) 0%, rgba(90, 180, 80, 0.45) 48%, transparent 75%);
+  box-shadow: 0 0 16px rgba(140, 230, 100, 0.9);
+  transition: top 0.7s cubic-bezier(0.4, 0.1, 0.45, 1);
+  animation: m3-drain-wave 0.7s cubic-bezier(0.4, 0.1, 0.45, 1) forwards;
+  pointer-events: none;
+  z-index: 3;
+}
+@keyframes m3-drain-wave {
+  0% { opacity: 0; filter: brightness(1.4); transform: scaleX(0.55); }
+  25% { opacity: 1; }
+  100% { opacity: 0; filter: brightness(0.9); transform: scaleX(1.2); }
+}
+.m3__vine-node {
+  position: relative;
+  z-index: 1;
+  width: 44px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+}
+/* 果子沿蜿蜒茎左右错落 */
+.m3__vine-node.is-slot-0 { transform: translateX(14px); }
+.m3__vine-node.is-slot-1 { transform: translateX(-16px); }
+.m3__vine-node.is-slot-2 { transform: translateX(12px); }
+.m3__vine-twig {
+  position: absolute;
+  top: 50%;
+  width: 15px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #3d8f52, #6bb85a);
+  transition: background 0.55s ease, filter 0.55s ease, opacity 0.55s ease;
+}
+.m3__vine-node.is-dim .m3__vine-twig,
+.m3__vine-node.is-dropping .m3__vine-twig {
+  background: linear-gradient(90deg, #8a8a8a, #b0b0b0);
+  filter: grayscale(1);
+  opacity: 0.55;
+}
+.m3__vine-node.is-slot-0 .m3__vine-twig,
+.m3__vine-node.is-slot-2 .m3__vine-twig {
+  right: calc(50% + 4px);
+  transform-origin: right center;
+  transform: rotate(-28deg);
+}
+.m3__vine-node.is-slot-1 .m3__vine-twig {
+  left: calc(50% + 4px);
+  transform-origin: left center;
+  transform: rotate(26deg);
+}
+.m3__vine-leaf {
+  position: absolute;
+  font-size: 12px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.12));
+  transition: filter 0.55s ease, opacity 0.55s ease, transform 0.55s ease;
+}
+.m3__vine-node.is-slot-0 .m3__vine-leaf { top: 0; left: -2px; transform: rotate(-28deg); }
+.m3__vine-node.is-slot-1 .m3__vine-leaf { top: -2px; right: -2px; transform: rotate(24deg); }
+.m3__vine-node.is-slot-2 .m3__vine-leaf { bottom: -2px; left: 0; transform: rotate(-16deg); }
+.m3__vine-fruit {
+  position: relative;
+  z-index: 2;
+  font-size: 22px;
+  line-height: 1;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.18));
+  transition:
+    filter 0.45s ease,
+    opacity 0.45s ease,
+    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: m3-fruit-idle 2.8s ease-in-out infinite;
+}
+.m3__vine-node.is-slot-1 .m3__vine-fruit { animation-delay: 0.35s; }
+.m3__vine-node.is-slot-2 .m3__vine-fruit { animation-delay: 0.7s; }
+.m3__vine-node.is-dim .m3__vine-fruit {
+  filter: grayscale(1) brightness(0.85) contrast(0.85);
+  opacity: 0.38;
+  transform: scale(0.88);
+  animation: none;
+}
+.m3__vine-node.is-dim .m3__vine-leaf {
+  filter: grayscale(1);
+  opacity: 0.4;
+}
+.m3__vine-node.is-dropping .m3__vine-fruit {
+  animation: m3-fruit-crack 0.55s cubic-bezier(0.35, 0.1, 0.55, 1) forwards;
+}
+.m3__vine-node.is-dropping .m3__vine-leaf {
+  animation: m3-leaf-wilt 0.6s ease forwards;
+}
+.m3__fruit-shard {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  z-index: 5;
+  pointer-events: none;
+  animation: m3-fruit-shard 0.72s cubic-bezier(0.22, 0.8, 0.35, 1) forwards;
+}
+.m3__fruit-shard-bit {
+  position: absolute;
+  inset: 0;
+  border-radius: 40% 60% 55% 45%;
+  background: var(--sc);
+  box-shadow: 0 0 4px var(--sc);
+  transform: scale(var(--sz));
+}
+.m3__fruit-shard-bit.is-emoji {
+  background: transparent;
+  box-shadow: none;
+  font-style: normal;
+  font-size: 11px;
+  line-height: 10px;
+  text-align: center;
+  filter: saturate(1.1);
+  opacity: 0.9;
+}
+@keyframes m3-fruit-idle {
+  0%, 100% { transform: translateY(0) rotate(-3deg); }
+  50% { transform: translateY(2px) rotate(3deg); }
+}
+@keyframes m3-fruit-crack {
+  0% { transform: scale(1) rotate(0deg); filter: none; opacity: 1; }
+  18% { transform: scale(1.22) rotate(-8deg); filter: brightness(1.25); }
+  40% { transform: scale(1.05) rotate(6deg); opacity: 0.85; }
+  70% { transform: scale(0.55) rotate(-14deg); filter: grayscale(0.6) brightness(1.1); opacity: 0.35; }
+  100% {
+    transform: scale(0.88) translateY(3px) rotate(4deg);
+    filter: grayscale(1) brightness(0.85);
+    opacity: 0.38;
+  }
+}
+@keyframes m3-leaf-wilt {
+  0% { filter: none; opacity: 1; }
+  100% { filter: grayscale(1); opacity: 0.4; transform: rotate(25deg) scale(0.9); }
+}
+@keyframes m3-fruit-shard {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0deg) scale(0.4);
+  }
+  18% {
+    opacity: 1;
+    transform: translate(calc(var(--tx) * 0.35), calc(var(--ty) * 0.2)) rotate(calc(var(--rot) * 0.3)) scale(calc(var(--sz) * 1.15));
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--tx), var(--ty)) rotate(var(--rot)) scale(0.15);
+  }
+}
 .m3__restart {
   margin-left: auto;
   appearance: none;
@@ -1176,7 +1612,8 @@ onUnmounted(() => {
 
 .m3__board {
   position: relative;
-  margin: 0 auto;
+  margin: 0;
+  flex-shrink: 0;
   border-radius: 12px;
   background: linear-gradient(180deg, #f0e6d0 0%, #e8dcc0 100%);
   border: 1.5px solid #2c2c2c;
